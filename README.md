@@ -38,7 +38,7 @@ npm run verify      # 타입체크 → React Compiler 검사 → 테스트 → �
 
 TypeScript(strict, `noUncheckedIndexedAccess`)와 React Compiler(`reactCompiler: true`)를 사용한다. 소스는 `.ts` 확장자로 import하며, 테스트와 스크립트는 Node 24의 타입 제거 기능으로 빌드 없이 실행된다. `npm run check:compiler`는 모든 클라이언트 컴포넌트·훅이 컴파일러로 최적화되는지 확인하고, bail-out이 하나라도 있으면 실패한다. React Compiler 1.0은 `try/finally`와 구조 분해 props 기본값에서 bail-out하므로 두 문법을 쓰지 않는다.
 
-데모 시나리오와 화면별 기대 결과는 [로컬 데모 모드 QA 가이드](docs/demo-mode.md)를 참고한다.
+데모 시나리오와 화면별 기대 결과는 [로컬 데모 모드 QA 가이드](.claude/docs/demo-mode.md)를 참고한다.
 
 ### 휴대폰 QR 시연
 
