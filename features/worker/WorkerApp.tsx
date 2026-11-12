@@ -7,7 +7,7 @@ import type { InputMode, SessionView, WorkerTurn } from "../../shared/types.ts";
 import NoticeView, { SituationCard } from "./NoticeView";
 import { post } from "../../ui/request";
 import { useRecognition } from "./speech";
-import Loading from "../../ui/Loading";
+import Loading, { VoiceWave } from "../../ui/Loading";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 
 const LANG_BG = ["bg-time text-white", "bg-except text-ink", "bg-action text-ink", "bg-place text-ink"];
@@ -284,10 +284,17 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
           <div className="grid grid-cols-2 gap-2">
             {recognition.supported ? (
               <button type="button" disabled={busy} aria-pressed={recognition.listening}
+                aria-label={recognition.listening ? t.listening : undefined}
                 className={recognition.listening ? "btn-primary !bg-stop !text-ink" : "btn-secondary"}
                 onClick={() => (recognition.listening ? recognition.stop() : recognition.start())}>
-                <span aria-hidden="true" className="h-4 w-2.5 rounded-full bg-current" />
-                {recognition.listening ? t.listening : t.speak}
+                {recognition.listening ? <VoiceWave /> : (
+                  <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[18px] shrink-0" fill="none" stroke="currentColor"
+                    strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="2.5" width="6" height="12" rx="3" fill="currentColor" />
+                    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+                  </svg>
+                )}
+                {!recognition.listening && t.speak}
               </button>
             ) : <p className="self-center text-[13px] text-ink-2">{t.speechUnsupported}</p>}
             <button className="btn-primary" aria-busy={busy} disabled={busy || recognition.listening || !answer.trim()}>
