@@ -22,12 +22,6 @@
   --shadow-soft: 0 6px 24px #2a20140f;
   --shadow-float: 0 12px 32px #2a201424;
 
-  --animate-pulse-ring: pulse-ring 1.4s infinite;
-  @keyframes pulse-ring {
-    0% { box-shadow: 0 0 0 0 #b7a2eaa0; }
-    70% { box-shadow: 0 0 0 10px #b7a2ea00; }
-    100% { box-shadow: 0 0 0 0 #b7a2ea00; }
-  }
 }
 
 @layer base {
@@ -50,6 +44,8 @@
   select { @apply w-auto rounded-full px-3 py-1.5 text-[13px] font-bold; }
   input[type="checkbox"] { @apply size-[18px] accent-ink; }
   button:disabled { @apply cursor-default opacity-40; }
+  /* A button that is working shows its loading animation at full strength. */
+  button[aria-busy="true"]:disabled { @apply opacity-100; }
   details > summary { @apply cursor-pointer font-bold; }
 }
 

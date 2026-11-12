@@ -8,10 +8,20 @@ import NoticeView from "../worker/NoticeView";
 import { post } from "../../ui/request";
 import { useSpeaker } from "../worker/speech";
 import FloatingError from "../../ui/FloatingError";
+import Loading from "../../ui/Loading";
+import Select, { type SelectOption } from "../../ui/Select";
 import { KIND_BG } from "../../ui/tone.ts";
 
 const networkError = "요청을 완료하지 못했어요. 연결을 확인한 뒤 다시 시도하세요.";
 const STEPS = ["작업 변경 사항 작성", "AI 노트 검수", "작업자 화면 검수", "발행 · QR 공유"];
+const STEP_IDS = ["step-source", "step-note", "step-preview", "step-publish"];
+const KIND_OPTIONS: SelectOption<ConditionKind>[] = (Object.entries(CONDITION_KINDS) as Array<[ConditionKind, string]>)
+  .map(([value, label]) => ({ value, label, swatch: KIND_BG[value].split(" ")[0] }));
+
+// Jumps to a step's section; the steps stay on one page, so going back keeps every edit.
+function goToStep(index: number) {
+  document.getElementById(STEP_IDS[index] ?? "")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 
 // Splits the source into plain and evidence-highlighted segments.
 interface Segment { text: string; id?: string }
@@ -107,14 +117,15 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
         <h1>안녕하세요, 관리자님<br />좋은 하루에요.</h1>
         <ol className="flex w-full items-center" aria-label="진행 단계">
           {STEPS.map((label, i) => (
-            <li key={label} title={label} aria-current={i === step ? "step" : undefined} className={"flex items-center gap-2 " + (i > 0 ? "flex-1 pl-2" : "")}>
+            <li key={label} aria-current={i === step ? "step" : undefined} className={"flex items-center gap-2 " + (i > 0 ? "flex-1 pl-2" : "")}>
               {i > 0 && <span aria-hidden="true" className={"h-0.5 flex-1 rounded-full " + (i <= step ? "bg-ink" : "bg-grid")} />}
-              <span className={"grid place-items-center rounded-full font-black transition-all "
-                + "shrink-0 " + (i === step ? "size-9 bg-ink text-[15px] text-paper shadow-float"
-                  : i < step ? "size-7 bg-action text-xs text-ink" : "size-7 bg-paper text-xs text-ink-3")}>
+              <button type="button" title={label} aria-label={`${i + 1}단계 ${label}${i <= step || (i === 3 && preview) ? "로 이동" : " (아직 열리지 않음)"}`}
+                disabled={!(i <= step || (i === 3 && preview))} onClick={() => goToStep(i)}
+                className={"grid shrink-0 cursor-pointer place-items-center rounded-full font-black transition-all enabled:hover:scale-110 disabled:cursor-default disabled:opacity-100 "
+                  + (i === step ? "size-9 bg-ink text-[15px] text-paper shadow-float"
+                    : i < step || (i === 3 && preview) ? "size-7 bg-action text-xs text-ink" : "size-7 bg-paper text-xs text-ink-3")}>
                 {i + 1}
-              </span>
-              <span className="sr-only">{label}</span>
+              </button>
             </li>
           ))}
         </ol>
@@ -122,7 +133,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
       <div className={"grid items-start gap-5 " + (draft ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "max-w-[760px]")}>
         {/* ---------- source ---------- */}
-        <section className="card">
+        <section id="step-source" className="card scroll-mt-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2><label htmlFor="source">작업 변경 사항</label></h2>
             {draft && (
@@ -146,8 +157,8 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
           )}
           {!draft && (
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <button className="btn-primary" disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
-                {busy === "analyze" ? "AI 노트를 만드는 중…" : "AI 노트 생성"}
+              <button className="btn-primary" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
+                {busy === "analyze" ? <><Loading size={22} tone="light" />AI 노트를 만드는 중</> : "AI 노트 생성"}
               </button>
             </div>
           )}
@@ -155,7 +166,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
         {/* ---------- AI analysis review ---------- */}
         {draft && (
-          <section className="card">
+          <section id="step-note" className="card scroll-mt-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2>AI 노트</h2>
               <span className="text-[13px] text-ink-2">체크한 조건을 작업자 답변에서 확인해요</span>
@@ -169,9 +180,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                   className={"grid gap-2 rounded-bubble bg-white p-3.5 transition " + (focus === c.id ? "ring-2 ring-ink" : "")}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={"grid size-6 place-items-center rounded-full text-xs font-black " + KIND_BG[c.kind]}>{c.id.slice(1)}</span>
-                    <select aria-label="조건 종류" value={c.kind} onChange={e => updateCondition(c.id, { kind: e.target.value as ConditionKind })}>
-                      {Object.entries(CONDITION_KINDS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-                    </select>
+                    <Select label="조건 종류" value={c.kind} options={KIND_OPTIONS} onChange={kind => updateCondition(c.id, { kind })} />
                     <label className="inline-flex items-center gap-1.5 text-[13px] font-bold">
                       <input type="checkbox" checked={c.check} onChange={e => updateCondition(c.id, { check: e.target.checked })} />
                       답변에서 확인
@@ -197,8 +206,8 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
             {!preview && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button className="btn-primary" disabled={Boolean(busy) || !canPreview} onClick={makePreview}>
-                  {busy === "preview" ? "번역하고 역번역으로 검증하는 중…" : `작업자 화면 미리보기 (${WORKER_LANGS.map(l => l.toUpperCase()).join("·")} 번역 + 검증)`}
+                <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makePreview}>
+                  {busy === "preview" ? <><Loading size={22} tone="light" />번역하고 역번역으로 검증하는 중</> : `작업자 화면 미리보기 (${WORKER_LANGS.map(l => l.toUpperCase()).join("·")} 번역 + 검증)`}
                 </button>
               </div>
             )}
@@ -208,7 +217,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
       {/* ---------- worker preview & translation check ---------- */}
       {preview && translation && draft && (
-        <section className="card">
+        <section id="step-preview" className="card scroll-mt-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <h2>작업자 화면 검수</h2>
             <div className="flex gap-1.5 rounded-full bg-white p-1" role="tablist" aria-label="미리보기 언어">
@@ -261,15 +270,15 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                 <p className="mt-2 rounded-2xl bg-white p-3 whitespace-pre-wrap">{translation.backTranslation}</p>
               </details>
 
-              <div className="mt-6 grid justify-items-start gap-3 rounded-bubble bg-white p-5">
+              <div id="step-publish" className="mt-6 grid scroll-mt-6 justify-items-start gap-3 rounded-bubble bg-white p-5">
                 {mismatch.length > 0 && (
                   <label className="flex items-center gap-2 text-sm font-bold">
                     <input type="checkbox" checked={acceptMismatch} onChange={e => setAcceptMismatch(e.target.checked)} />
                     번역 검증 경고 {mismatch.length}건을 확인했고, 이대로 발행합니다.
                   </label>
                 )}
-                <button className="btn-primary !px-6 !py-4 text-base" disabled={Boolean(busy) || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
-                  {busy === "publish" ? "발행 중…" : "승인하고 발행 · QR 만들기"}
+                <button className="btn-primary !px-6 !py-4 text-base" aria-busy={busy === "publish"} disabled={Boolean(busy) || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
+                  {busy === "publish" ? <><Loading size={22} tone="light" />발행하는 중</> : "승인하고 발행 · QR 만들기"}
                 </button>
                 <p className="text-[13px] text-ink-2">발행 시에는 AI를 다시 호출하지 않아요. 지금 검수한 문장이 그대로 작업자에게 전달돼요.</p>
               </div>

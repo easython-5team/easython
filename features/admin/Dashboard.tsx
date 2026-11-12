@@ -5,6 +5,7 @@ import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { CONDITION_KINDS, isLang, LANGUAGES } from "../../shared/languages.ts";
 import type { CheckStatus, Condition, DashboardEscalation, DashboardView, DashboardWorker, TurnState, WorkerStatus } from "../../shared/types.ts";
 import FloatingError from "../../ui/FloatingError";
+import Loading from "../../ui/Loading";
 import { post } from "../../ui/request";
 import { CHECK_BG, CHECK_ICON, KIND_BG, TONE_BG, type Tone } from "../../ui/tone.ts";
 
@@ -117,7 +118,7 @@ function Escalation({ item, id, onResolved }: { item: DashboardEscalation; id: s
           <p className="text-[13px] text-ink/70">공지에 근거가 없어 AI가 답하지 않고 넘긴 질문이에요. 한국어로 답하면 작업자 언어로 번역해 전달하고 공지에도 반영해요.</p>
           <textarea rows={2} value={answer} disabled={busy} placeholder="확정 답변을 한국어로 입력하세요" onChange={e => setAnswer(e.target.value)} />
           {error && <p role="alert" className="rounded-2xl bg-stop/25 px-4 py-3 text-sm">{error}</p>}
-          <div><button className="btn-primary" disabled={busy || !answer.trim()}>{busy ? "번역해서 전달하는 중…" : "답변 확정 · 작업자에게 전달"}</button></div>
+          <div><button className="btn-primary" aria-busy={busy} disabled={busy || !answer.trim()}>{busy ? <><Loading size={22} tone="light" />번역해서 전달하는 중</> : "답변 확정 · 작업자에게 전달"}</button></div>
         </form>
       )}
     </li>
@@ -207,7 +208,14 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
     return () => { cancelled = true; clearInterval(timer); };
   }, [id]);
 
-  if (!data) return <main className="mx-auto max-w-[1320px] px-4 pt-4 sm:px-6"><p className="text-ink-2">{error || "불러오는 중…"}</p></main>;
+  if (!data) {
+    return (
+      <main className="mx-auto grid min-h-[50vh] max-w-[1320px] place-items-center px-4 pt-4 sm:px-6" aria-busy={!error}>
+        {error ? <p className="text-ink-2">{error}</p>
+          : <p className="grid justify-items-center gap-2 text-sm font-semibold text-ink-2"><Loading size={56} />현황을 불러오는 중</p>}
+      </main>
+    );
+  }
   const { notice, stats, workers, escalations } = data;
   const pending = escalations.filter(e => !e.resolvedAt);
   const done = escalations.filter(e => e.resolvedAt);

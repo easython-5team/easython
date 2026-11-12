@@ -6,6 +6,7 @@ import type { InputMode, SessionView, TurnState } from "../../shared/types.ts";
 import NoticeView, { ListenButton, SituationCard } from "./NoticeView";
 import { post } from "../../ui/request";
 import { useRecognition, useSpeaker } from "./speech";
+import Loading from "../../ui/Loading";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 
 const TERMINAL: TurnState[] = ["understood", "guidance"];
@@ -70,7 +71,7 @@ export default function WorkerApp({ id }: { id: string }) {
   }
 
   const restoring = savedId === undefined || (typeof savedId === "string" && !sessionId && !restoreFailed);
-  if (restoring) return <div className="min-h-[40vh]" aria-busy="true" />;
+  if (restoring) return <div className="grid min-h-[50vh] place-items-center" aria-busy="true"><Loading size={56} /></div>;
 
   if (sessionId && view && lang) {
     return <Conversation id={id} sessionId={sessionId} view={view} setView={setView} reload={load} t={t} lang={lang} />;
@@ -107,7 +108,7 @@ export default function WorkerApp({ id }: { id: string }) {
       </label>
       <p className="text-sm text-ink-2">{t.nameHint}</p>
       {error && <p role="alert" className="rounded-2xl bg-stop/20 px-4 py-3 text-sm font-semibold text-ink">{error}</p>}
-      <button className="btn-primary w-full !py-4 text-[17px]" disabled={busy || !name.trim()}>{busy ? t.starting : t.start}</button>
+      <button className="btn-primary w-full !py-4 text-[17px]" aria-busy={busy} disabled={busy || !name.trim()}>{busy ? <><Loading size={24} tone="light" />{t.starting}</> : t.start}</button>
     </form>
   );
 }
@@ -248,7 +249,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
                 {turn.state === "manager" && (
                   managerAnswer
                     ? <div className="mt-3 rounded-2xl bg-white/70 px-3.5 py-3"><strong className="eyebrow text-ink">{t.managerAnswered}</strong><p>{managerAnswer}</p></div>
-                    : <p className="mt-3 flex items-center gap-2 text-sm font-bold"><span aria-hidden="true" className="size-2.5 animate-pulse-ring rounded-full bg-ink" />{t.waitingManager}</p>
+                    : <p className="mt-3 flex items-center gap-2 text-sm font-bold"><Loading size={24} />{t.waitingManager}</p>
                 )}
               </div>
             </div>
@@ -284,8 +285,8 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
                 {recognition.listening ? t.listening : t.speak}
               </button>
             ) : <p className="self-center text-[13px] text-ink-2">{t.speechUnsupported}</p>}
-            <button className="btn-primary" disabled={busy || recognition.listening || !answer.trim()}>
-              {busy ? t.checking : t.send}
+            <button className="btn-primary" aria-busy={busy} disabled={busy || recognition.listening || !answer.trim()}>
+              {busy ? <><Loading size={22} tone="light" />{t.checking}</> : t.send}
             </button>
           </div>
         </form>
