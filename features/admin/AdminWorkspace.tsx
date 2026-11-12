@@ -10,9 +10,6 @@ import { useSpeaker } from "../worker/speech";
 import FloatingError from "../../ui/FloatingError";
 import { KIND_BG } from "../../ui/tone.ts";
 
-const example = `[강풍 대비 옥상 작업 중단 안내]
-
-강풍이 예상되어 오늘 오후 2시부터 옥상 작업을 모두 중단합니다. 공구와 남은 자재는 정리하지 말고 옥상에 그대로 두고 내려오세요. 내려온 뒤에는 1층 현장 사무실 앞에 모여 인원 확인을 받으세요.`;
 const networkError = "요청을 완료하지 못했어요. 연결을 확인한 뒤 다시 시도하세요.";
 const STEPS = ["공지 작성", "AI 분석 검수", "작업자 화면 검수", "발행 · QR 공유"];
 
@@ -37,9 +34,9 @@ function segments(source: string, conditions: Condition[]): Segment[] {
   return parts;
 }
 
-export default function AdminWorkspace({ demoSource, recent }: { demoSource: string; recent: RecentNotice[] }) {
+export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const router = useRouter();
-  const [source, setSource] = useState(demoSource);
+  const [source, setSource] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewLang, setPreviewLang] = useState<Lang>("en");
@@ -124,11 +121,8 @@ export default function AdminWorkspace({ demoSource, recent }: { demoSource: str
         <section className="card">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2><label htmlFor="source">한국어 변경 지시</label></h2>
-            {draft ? (
+            {draft && (
               <button type="button" className="btn-text" disabled={Boolean(busy)} onClick={() => resetFrom(1)}>원문 수정</button>
-            ) : (
-              <button type="button" className="btn-text" disabled={Boolean(busy)}
-                onClick={() => { setSource(demoSource || example); resetFrom(1); }}>예시 불러오기</button>
             )}
           </div>
           {draft ? (

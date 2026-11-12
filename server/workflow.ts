@@ -1,7 +1,6 @@
 import "server-only";
-import * as live from "./ai/tasks.ts";
+import { analyzeNotice, judge, translateAddendum, translateNotice } from "./ai/tasks.ts";
 import { decide, MAX_TURNS, mergeAssessment, TERMINAL_STATES, verifyAssessment } from "./decide.ts";
-import * as demo from "./demo.ts";
 import { fail } from "./errors.ts";
 import { WORKER_LANGS, WORKER_TEXT, type Lang } from "../shared/languages.ts";
 import {
@@ -9,28 +8,17 @@ import {
   recordTurn, resolveEscalation, savePreview, sessionEscalations, workerNotice,
 } from "./db/store.ts";
 import type {
-  Assessed, DashboardView, Draft, Engine, InputMode, Notice, PreviewResult, SessionView, Translation, Translations, Turn,
+  Assessed, DashboardView, Draft, InputMode, Notice, PreviewResult, SessionView, Translation, Translations, Turn,
   WorkerNotice, WorkerStatus, WorkerTurn,
 } from "../shared/types.ts";
-
-// Both modules must satisfy the same contract; the compiler checks it here.
-const engines: { live: Engine; demo: Engine } = { live, demo };
-
-export function isDemo(): boolean {
-  return process.env.EASYTHON_DEMO === "1";
-}
-export function engine(): Engine {
-  return isDemo() ? engines.demo : engines.live;
-}
 
 /* ---------- manager: review and publish ---------- */
 
 export async function analyze(source: string): Promise<Draft> {
-  return engine().analyzeNotice(source);
+  return analyzeNotice(source);
 }
 
 export async function preview(source: string, draft: Draft): Promise<PreviewResult> {
-  const { translateNotice } = engine();
   const entries = await Promise.all(
     WORKER_LANGS.map(async lang => [lang, await translateNotice(source, draft, lang)] as const),
   );
@@ -121,7 +109,7 @@ export async function respond({ noticeId, sessionId, turn, answer, mode }: {
     return active.result;
   }
   const result = (async () => {
-    const verdict = await engine().judge({ notice, lang, history: turns, answer });
+    const verdict = await judge({ notice, lang, history: turns, answer });
     const checkedIds = notice.draft.conditions.filter(c => c.check).map(c => c.id);
     const prior: Assessed[] = last?.assessment ?? checkedIds.map(id => ({ id, status: "missing", quote: "" }));
     const assessment = verdict.intent === "question" ? prior
@@ -177,6 +165,6 @@ export async function resolve(noticeId: string, escalationId: string, answerKo: 
   const escalation = getEscalation(escalationId);
   if (!escalation || escalation.noticeId !== noticeId) fail(404, "확인 요청을 찾을 수 없어요.");
   if (escalation.resolvedAt) fail(409, "이미 답변한 요청이에요.");
-  const translations = await engine().translateAddendum({ questionKo: escalation.questionKo, answerKo });
+  const translations = await translateAddendum({ questionKo: escalation.questionKo, answerKo });
   return resolveEscalation({ escalationId, answerKo, questionKo: escalation.questionKo, translations });
 }

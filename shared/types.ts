@@ -120,16 +120,6 @@ export interface JudgeContext {
   answer: string;
 }
 
-type MaybePromise<T> = T | Promise<T>;
-
-/** Implemented by the live OpenAI engine (lib/ai.ts) and the keyless demo (lib/demo.ts). */
-export interface Engine {
-  analyzeNotice(source: string): MaybePromise<Draft>;
-  translateNotice(source: string, draft: Draft, lang: Lang): MaybePromise<Translation>;
-  judge(context: JudgeContext): MaybePromise<Verdict>;
-  translateAddendum(input: { questionKo: string; answerKo: string }): MaybePromise<AddendumTranslations>;
-}
-
 export interface Session {
   id: string;
   noticeId: string;

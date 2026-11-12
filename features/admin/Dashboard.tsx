@@ -88,9 +88,7 @@ function QrPanel({ id, baseUrl }: { id: string; baseUrl: string }) {
   );
 }
 
-function Escalation({ item, id, onResolved, demoAnswer }: {
-  item: DashboardEscalation; id: string; onResolved: () => void; demoAnswer: string | null;
-}) {
+function Escalation({ item, id, onResolved }: { item: DashboardEscalation; id: string; onResolved: () => void }) {
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -118,7 +116,6 @@ function Escalation({ item, id, onResolved, demoAnswer }: {
         <form className="grid gap-2" onSubmit={resolve}>
           <p className="text-[13px] text-ink/70">공지에 근거가 없어 AI가 답하지 않고 넘긴 질문이에요. 한국어로 답하면 작업자 언어로 번역해 전달하고 공지에도 반영해요.</p>
           <textarea rows={2} value={answer} disabled={busy} placeholder="확정 답변을 한국어로 입력하세요" onChange={e => setAnswer(e.target.value)} />
-          {demoAnswer && !answer && <button type="button" className="btn-text justify-self-start" onClick={() => setAnswer(demoAnswer)}>데모 답변 넣기</button>}
           {error && <p role="alert" className="rounded-2xl bg-stop/25 px-4 py-3 text-sm">{error}</p>}
           <div><button className="btn-primary" disabled={busy || !answer.trim()}>{busy ? "번역해서 전달하는 중…" : "답변 확정 · 작업자에게 전달"}</button></div>
         </form>
@@ -185,7 +182,7 @@ function WorkerRow({ worker, conditions, open, toggle }: {
   );
 }
 
-export default function Dashboard({ id, baseUrl, demoAnswer }: { id: string; baseUrl: string; demoAnswer: string | null }) {
+export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string }) {
   const [data, setData] = useState<DashboardView | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState("");
@@ -248,7 +245,7 @@ export default function Dashboard({ id, baseUrl, demoAnswer }: { id: string; bas
           <div className="mb-4 flex items-center justify-between gap-3"><h2>관리자 확인 요청</h2>{pending.length > 0 && <span className="tag bg-ink !text-paper">{pending.length}</span>}</div>
           {escalations.length === 0 ? <p className="text-ink-2">공지로 답할 수 없는 질문이 들어오면 여기에 표시돼요.</p> : (
             <ul className="grid gap-3">
-              {[...pending, ...done].map(item => <Escalation key={item.id} item={item} id={id} onResolved={refresh} demoAnswer={demoAnswer} />)}
+              {[...pending, ...done].map(item => <Escalation key={item.id} item={item} id={id} onResolved={refresh} />)}
             </ul>
           )}
         </section>
