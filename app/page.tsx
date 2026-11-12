@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default function Home() {
   return (
-    <Shell role="관리자 · 변경 지시 발행">
+    <Shell>
       <AdminWorkspace recent={recentNotices()} />
     </Shell>
   );

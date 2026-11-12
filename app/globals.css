@@ -35,10 +35,6 @@
   body {
     @apply bg-canvas font-sans text-ink antialiased;
     line-height: 1.55;
-    background-image:
-      linear-gradient(var(--color-grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
-    background-size: 48px 48px;
   }
   h1 { @apply text-[clamp(30px,4vw,44px)] leading-[1.1] font-black tracking-[-0.055em]; }
   h2 { @apply text-xl leading-snug font-extrabold tracking-[-0.04em]; }

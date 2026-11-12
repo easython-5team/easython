@@ -11,7 +11,7 @@ export default async function NoticeDashboard({ params }: PageProps<"/notices/[i
   const { id } = await params;
   if (!getNotice(id)) notFound();
   return (
-    <Shell role="관리자 · 이해 확인 현황">
+    <Shell>
       <Dashboard id={id} baseUrl={process.env.PUBLIC_BASE_URL || ""} />
     </Shell>
   );
