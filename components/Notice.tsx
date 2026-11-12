@@ -1,4 +1,6 @@
-export default function Notice({ notice }) {
+import type { WorkerPreview } from "../lib/types.ts";
+
+export default function Notice({ notice }: { notice: WorkerPreview }) {
   return (
     <div className="notice" lang="en">
       <div className="notice-section">

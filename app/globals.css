@@ -52,6 +52,17 @@ button:disabled { opacity: .52; cursor: default; }
 .paper-icon::after { content: ""; width: 13px; height: 2px; position: absolute; left: 5px; top: 9px; background: #8ba48d; box-shadow: 0 5px #8ba48d,0 10px #8ba48d; }
 fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .admin, .shell[lang="ko"] .bar-inner { width: min(1540px, calc(100% - 48px)); }
+.editor-panel { max-width: 920px; }
+.steps { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 22px; font-size: 14px; }
+.steps > * { padding: 8px 13px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); text-decoration: none; }
+.steps strong { color: var(--green); background: #e8f1e5; border-color: #a6c5a1; }
+.steps a:hover { color: var(--green); border-color: var(--green); }
+.review-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 20px; align-items: start; }
+.source-text { margin-top: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.check-field { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; font-size: 14px; line-height: 1.45; }
+.check-field input { width: 18px; min-width: 18px; margin-top: 2px; }
+.worker-preview { margin-top: 18px; padding: 18px; background: #f3f5ee; border: 1px solid var(--line); border-radius: 10px; }
+.worker-preview .field { margin-top: 18px; }
 .admin .workspace { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
 #source { min-height: 19rem; padding: 18px; font-size: 16px; line-height: 1.75; }
 .rubric { margin-top: 20px; padding: 16px; background: #f3f5ee; border-radius: 8px; }
@@ -60,6 +71,9 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .rubric summary { cursor: pointer; color: var(--green); }
 .rubric blockquote { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--line); }
 .notice { border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+.review-hint { margin: 8px 0 16px; color: var(--muted); font-size: 14px; }
+.preview-check { margin-top: 14px; }
+.preview-check summary { cursor: pointer; color: var(--green); margin-bottom: 12px; }
 .notice-section { padding: 18px; }
 .notice-section h3, .exchange h3 { color: var(--green); font-size: 14px; margin-bottom: 7px; }
 .notice-section p, .exchange p { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -79,6 +93,7 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .feedback.guidance,.feedback.manager { background: #fbefda; }
 .worker form .alert { margin-top: 12px; }
 @media (max-width: 760px) {
+  .review-grid { grid-template-columns: 1fr; }
   .admin .workspace { grid-template-columns: 1fr; }
   .admin, .shell[lang="ko"] .bar-inner { width: calc(100% - 24px); }
   .container,.bar-inner { width: min(100% - 32px, 600px); }

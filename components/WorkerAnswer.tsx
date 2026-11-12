@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react";
 import { post } from "./request";
+import type { FormEvent } from "react";
+import type { ResponseRow, WorkerReply, WorkerState } from "../lib/types.ts";
 
-const feedback = {
+const feedback: Record<WorkerState, string> = {
   followup: "One more question",
   understood: "Understanding confirmed",
   guidance: "Action to follow",
@@ -11,16 +13,16 @@ const feedback = {
   answered: "Answer to your question",
 };
 
-export default function WorkerAnswer({ id }) {
-  const session = useRef(null);
+export default function WorkerAnswer({ id }: { id: string }) {
+  const session = useRef<string | null>(null);
   const running = useRef(false);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState<ResponseRow[]>([]);
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const latest = history.at(-1)?.state;
-  const complete = ["guidance","understood","manager"].includes(latest);
-  async function submit(event) {
+  const complete = latest !== undefined && ["guidance","understood","manager"].includes(latest);
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (running.current || complete || !answer.trim()) return;
     running.current = true;
@@ -28,13 +30,13 @@ export default function WorkerAnswer({ id }) {
     setError("");
     try {
       session.current ??= crypto.randomUUID();
-      const result = await post("/api/respond", {
+      const result = await post<WorkerReply>("/api/respond", {
         id, sessionId: session.current, turn: history.length, answer: answer.trim(),
       }, "Could not send your response. Please try again.");
       setHistory([...history, { ...result, answer: answer.trim() }]);
       setAnswer("");
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : "Could not send your response.");
     } finally {
       setBusy(false);
       running.current = false;

@@ -1,18 +1,19 @@
-import { getHistory, getJudgmentContext, recordTurn } from './store.js';
+import { getHistory, getJudgmentContext, recordTurn } from './store.ts';
+import type { JudgeInput, RespondInput, ResponseRow, Verdict, WorkerPreview, WorkerReply, WorkerState } from './types.ts';
 
-const pending = new Map();
-const openStates = new Set(['followup', 'answered']);
+const pending = new Map<string, { answer: string; result: Promise<WorkerReply> }>();
+const openStates = new Set<WorkerState>(['followup', 'answered']);
 
-function fail(status, message) {
+function fail(status: number, message: string): never {
   throw Object.assign(new Error(message), { status });
 }
 
-function replay(row, answer) {
+function replay(row: ResponseRow, answer: string): WorkerReply {
   if (row.answer !== answer) fail(409, 'This turn already has a different answer.');
   return { state: row.state, message: row.message };
 }
 
-function decision(verdict, history, preview) {
+function decision(verdict: Verdict, history: ResponseRow[], preview: WorkerPreview): WorkerReply {
   const { kind, message, followup } = verdict;
   if (kind === 'ambiguous') {
     if (history.some(row => row.state === 'followup')) {
@@ -21,12 +22,12 @@ function decision(verdict, history, preview) {
     if (!followup?.trim()) fail(502, 'Please try your answer again.');
     return { state: 'followup', message: followup };
   }
-  const states = { correct: 'understood', incorrect: 'guidance', question: 'answered', unsupported: 'manager' };
+  const states = { correct: 'understood', incorrect: 'guidance', question: 'answered', unsupported: 'manager' } as const;
   if (!Object.hasOwn(states, kind) || !message?.trim()) fail(502, 'Please try your answer again.');
-  return { state: states[kind], message };
+  return { state: states[kind as keyof typeof states], message };
 }
 
-export async function respond({ id, sessionId, turn, answer }, judge) {
+export async function respond({ id, sessionId, turn, answer }: RespondInput, judge: (input: JudgeInput) => Verdict | Promise<Verdict>): Promise<WorkerReply> {
   if (typeof id !== 'string' || typeof sessionId !== 'string' || !sessionId.trim() || sessionId.length > 128 ||
       !Number.isSafeInteger(turn) || turn < 0 || typeof answer !== 'string' || !answer.trim()) {
     fail(400, 'Please enter an answer for this notice.');
@@ -34,10 +35,11 @@ export async function respond({ id, sessionId, turn, answer }, judge) {
   const context = getJudgmentContext(id);
   if (!context) fail(404, 'This notice could not be found.');
 
-  if (!context.preview) fail(409, "Please select English first.");
+  const preview = context.preview;
+  if (!preview) fail(409, "This notice is not ready for responses.");
   const history = getHistory(id, sessionId);
   if (history[turn]) return replay(history[turn], answer);
-  if (turn !== history.length || (history.length && !openStates.has(history.at(-1).state))) {
+  if (turn !== history.length || (history.length && !openStates.has(history.at(-1)!.state))) {
     fail(409, 'This session cannot accept that turn.');
   }
 
@@ -51,7 +53,7 @@ export async function respond({ id, sessionId, turn, answer }, judge) {
   const result = Promise.resolve()
     .then(() => judge({ ...context, history, answer }))
     .then(verdict => {
-      const response = decision(verdict, history, context.preview);
+      const response = decision(verdict, history, preview);
       const saved = recordTurn({ id, sessionId, turn, answer }, response);
       return replay(saved, answer);
     });

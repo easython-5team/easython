@@ -1,3 +1,5 @@
+import type { JudgeInput, NoticeDraft, Verdict, WorkerPreview } from './types.ts';
+
 export const materialNotice = `[내일 오전 1층 자재 반입 장소 변경 안내]
 
 내일 오전 8시부터 낮 12시까지 1층 동쪽 출입구의 바닥을 보수합니다. 이 시간에 도착하는 자재는 모두 서쪽 출입구로 반입해 1층 자재실 앞 노란색 표시 구역에 놓아 주세요. 자재를 내려놓은 뒤에는 운반 대차를 표시 구역 옆 대차 보관소에 반납해 주세요.
@@ -16,29 +18,40 @@ If you have already arrived at the east entrance, do not unload there. Follow th
 
 The work is scheduled to finish at noon. The floor may need more time to dry. Even after noon, keep using the west entrance until the site group chat announces that the east entrance is available.`;
 
-export function generateDraft(source) {
+export function generateDraft(source: string): NoticeDraft {
   if (source.replace(/\r\n/g, "\n") !== materialNotice) {
     throw Object.assign(new Error("데모에서는 ‘예시 불러오기’로 자재 반입 공지를 선택해 주세요."), { status: 400 });
   }
   return { question, rubric, evidence: ["서쪽 출입구로 반입해 1층 자재실 앞 노란색 표시 구역에 놓아 주세요."] };
 }
 
-export function translateNotice(_source, reviewedQuestion) {
+export function translateNotice(_source: string, reviewedQuestion: string): WorkerPreview {
   return { summary, question: reviewedQuestion === question
     ? "A delivery arrives at 9 AM tomorrow. Which entrance will you use and where will you leave the materials?"
     : reviewedQuestion };
 }
 
 // Only recognize scripted replies. Unrecognized text exercises the clarification flow.
-function replyKey(text) {
+function replyKey(text: string) {
   return text.toLowerCase().replace(/[’']/g, "'").replace(/[.!]$/, "").trim();
 }
 
-export function judge({ draft, history, answer }) {
-  if (draft.question !== question || draft.rubric !== rubric) {
+export function judge({ draft, history, answer }: JudgeInput): Verdict {
+  const reviewed = draft as Partial<NoticeDraft> | null;
+  if (reviewed?.question !== question || reviewed.rubric !== rubric) {
     return { kind: "unsupported", message: "This edited quiz needs manager confirmation in demo mode." };
   }
   const replies = [...history.map(turn => turn.answer), answer].map(replyKey);
+  const latest = replies.at(-1);
+  if (latest === "i'll use the east entrance") {
+    return { kind: "incorrect", message: "The east entrance is being repaired. Use the west entrance and leave the materials in the yellow marked area in front of the first-floor materials room." };
+  }
+  if (latest === "when will the group chat announce that the east entrance is available?") {
+    return { kind: "unsupported", message: "The notice does not say when that announcement will be posted. Please ask the manager to confirm." };
+  }
+  if (latest === "can i use the east entrance at 1 pm?") {
+    return { kind: "question", message: "Keep using the west entrance until the site group chat announces that the east entrance is available, even after noon." };
+  }
   const west = replies.includes("i'll use the west entrance");
   const yellow = replies.includes("in the yellow marked area in front of the first-floor materials room");
   if (west && yellow) return { kind: "correct", message: "Correct. Use the west entrance and leave the materials in the marked area." };

@@ -1,4 +1,6 @@
-export default function Shell({ worker = false, children }) {
+import type { ReactNode } from "react";
+
+export default function Shell({ worker = false, children }: { worker?: boolean; children: ReactNode }) {
   return (
     <div lang={worker ? "en" : "ko"} className="shell">
       <header className="topbar">

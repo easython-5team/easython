@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
-import { generateDraft, judge, translateNotice } from '../lib/ai.js';
+import { generateDraft, judge, translateNotice } from '../lib/ai.ts';
 
 const source = '오후 2시에 옥상 작업을 중단한다. 공구는 두고 내려온다.';
 const draft = {
@@ -8,9 +8,9 @@ const draft = {
   rubric: '공구를 두고 내려간다', evidence: ['공구는 두고 내려온다.'],
 };
 const preview = { summary: 'Stop rooftop work at 2 p.m. Leave the tools and go downstairs.', question: 'What will you do at 2 p.m. if tools remain?' };
-let originalFetch;
-let originalKey;
-let request;
+let originalFetch!: typeof fetch;
+let originalKey: string | undefined;
+let request!: { model: string; text: { format: { strict: boolean } }; store: boolean; input: string };
 
 beforeEach(() => {
   originalFetch = globalThis.fetch;
@@ -23,9 +23,9 @@ afterEach(() => {
   else process.env.OPENAI_API_KEY = originalKey;
 });
 
-function mockOutput(value) {
+function mockOutput(value: unknown) {
   globalThis.fetch = async (url, options) => {
-    request = JSON.parse(options.body);
+    request = JSON.parse(String(options?.body));
     assert.equal(url, 'https://api.openai.com/v1/responses');
     return Response.json({
       status: 'completed',
@@ -60,7 +60,7 @@ test('translation uses the reviewed Korean wording', async () => {
 });
 
 test('judge receives the real clarification exchange and current answer', async () => {
-  const history = [{ answer: "I'll go downstairs.", message: 'What about the tools?' }];
+  const history = [{ answer: "I'll go downstairs.", state: 'followup' as const, message: 'What about the tools?' }];
   const answer = "I'll leave them there.";
   const result = { kind: 'correct', message: 'Yes. Leave the tools and go downstairs.', followup: '' };
   mockOutput(result);
