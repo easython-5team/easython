@@ -80,11 +80,7 @@ export default function WorkerApp({ id }: { id: string }) {
   if (!lang) {
     return (
       <section className="grid gap-6 pt-4">
-        <h1 className="grid gap-1">
-          {WORKER_LANGS.map((code, i) => (
-            <span key={code} lang={code} className={i ? "text-[.62em] tracking-[-0.02em] text-ink-2" : ""}>{WORKER_TEXT[code].chooseLanguage}</span>
-          ))}
-        </h1>
+        <h1 lang="en">{WORKER_TEXT.en.chooseLanguage}</h1>
         <div className="grid gap-3">
           {WORKER_LANGS.map((code, i) => (
             <button key={code} type="button" lang={code} onClick={() => setLang(code)}
