@@ -145,7 +145,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
               placeholder="언제부터, 어디서, 무엇이 평소와 다르게 바뀌는지 평소처럼 적어 주세요." />
           )}
           {!draft && (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
               <button className="btn-primary" disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
                 {busy === "analyze" ? "AI 노트를 만드는 중…" : "AI 노트 생성"}
               </button>
