@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang } from "../../shared/languages.ts";
 import type { Condition, ConditionKind, Draft, PreviewResult, RecentNotice } from "../../shared/types.ts";
 import NoticeView from "../worker/NoticeView";
@@ -51,6 +51,8 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewLang, setPreviewLang] = useState<Lang>("en");
   const [acceptMismatch, setAcceptMismatch] = useState(false);
+  // The Korean question the current preview was translated from.
+  const [previewedQuestion, setPreviewedQuestion] = useState("");
   const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -80,6 +82,10 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     setDraft(current => (current ? { ...current, ...changes } : current));
     resetFrom(2);
   }
+  // Editing the question in step 3 keeps the preview on screen but marks it out of date.
+  function editQuestion(question: string) {
+    setDraft(current => (current ? { ...current, question } : current));
+  }
   function updateCondition(id: string, changes: Partial<Condition>) {
     if (!draft) return;
     updateDraft({ conditions: draft.conditions.map(c => (c.id === id ? { ...c, ...changes } : c)) });
@@ -98,8 +104,15 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const makePreview = () => run("preview", async () => {
     const result = await post("preview", { source, draft }, networkError);
     setPreview(result);
+    setPreviewedQuestion(draft?.question ?? "");
     setAcceptMismatch(false);
   });
+
+  // "질문 생성하기" moves the manager on to step 3 once its preview exists.
+  const previewId = preview?.previewId;
+  useEffect(() => {
+    if (previewId) goToStep(2);
+  }, [previewId]);
   const publish = () => run("publish", async () => {
     if (!preview) return;
     const { id } = await post("publish", { previewId: preview.previewId, acceptMismatch }, networkError);
@@ -109,6 +122,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const canPreview = draft && draft.title.trim() && draft.question.trim() &&
     draft.conditions.length && draft.conditions.every(c => c.label.trim()) && draft.conditions.some(c => c.check);
   const translation = preview?.translations[previewLang];
+  const questionChanged = Boolean(preview && draft && draft.question.trim() !== previewedQuestion.trim());
   const kinds = new Map<string, ConditionKind>(draft?.conditions.map(c => [c.id, c.kind]));
 
   return (
@@ -197,17 +211,10 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
             </ul>
             <button type="button" className="btn-text" onClick={addCondition}>+ 조건 직접 추가</button>
 
-            <div className="mt-5 grid gap-2 rounded-bubble bg-ink p-4 text-paper">
-              <label className="grid gap-2 text-sm font-bold text-ink-3">작업자에게 물을 상황 질문
-                <textarea rows={2} value={draft.question} className="font-bold" onChange={e => updateDraft({ question: e.target.value })} />
-              </label>
-              {draft.questionReason && <p className="text-[13px] text-ink-3"><strong className="mr-1.5 text-except">AI가 이 질문을 만든 이유</strong>{draft.questionReason}</p>}
-            </div>
-
             {!preview && (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-5 flex justify-center">
                 <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makePreview}>
-                  {busy === "preview" ? <><Loading size={22} tone="light" />번역하고 역번역으로 검증하는 중</> : `작업자 화면 미리보기 (${WORKER_LANGS.map(l => l.toUpperCase()).join("·")} 번역 + 검증)`}
+                  {busy === "preview" ? <><Loading size={22} tone="light" />질문을 만드는 중</> : "질문 생성하기"}
                 </button>
               </div>
             )}
@@ -243,6 +250,20 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
               </div>
             </div>
             <div className="min-w-0">
+              <div className="mb-6 grid gap-3 rounded-bubble bg-ink p-5 text-paper">
+                <label className="grid gap-2 text-sm font-bold text-ink-3">작업자에게 물을 상황 질문
+                  <textarea rows={2} value={draft.question} className="text-[16px] font-bold" onChange={e => editQuestion(e.target.value)} />
+                </label>
+                {questionChanged && (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[13px] text-except">질문을 바꿨어요. 미리보기에 반영해야 발행할 수 있어요.</p>
+                    <button className="btn-secondary !py-2 text-sm" aria-busy={busy === "preview"}
+                      disabled={Boolean(busy) || !draft.question.trim()} onClick={makePreview}>
+                      {busy === "preview" ? <><Loading size={20} />반영하는 중</> : "미리보기에 반영"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <h3 className="mb-3 flex flex-wrap items-baseline gap-2.5">번역 의미 검증 <span className="text-[13px] font-medium text-ink-2">번역 → 독립 역번역 → 조건별 비교</span></h3>
               <div className="overflow-x-auto rounded-bubble bg-white px-3">
                 <table className="w-full border-collapse text-sm">
@@ -277,7 +298,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                     번역 검증 경고 {mismatch.length}건을 확인했고, 이대로 발행합니다.
                   </label>
                 )}
-                <button className="btn-primary !px-6 !py-4 text-base" aria-busy={busy === "publish"} disabled={Boolean(busy) || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
+                <button className="btn-primary !px-6 !py-4 text-base" aria-busy={busy === "publish"} disabled={Boolean(busy) || questionChanged || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
                   {busy === "publish" ? <><Loading size={22} tone="light" />발행하는 중</> : "승인하고 발행 · QR 만들기"}
                 </button>
                 <p className="text-[13px] text-ink-2">발행 시에는 AI를 다시 호출하지 않아요. 지금 검수한 문장이 그대로 작업자에게 전달돼요.</p>
