@@ -1,9 +1,9 @@
 "use client";
 
-import type { WorkerText } from "../lib/languages.ts";
-import type { WorkerNotice } from "../lib/types.ts";
+import type { WorkerText } from "../../shared/languages.ts";
+import type { WorkerNotice } from "../../shared/types.ts";
 import type { Speaker } from "./speech.ts";
-import { KIND_BG } from "./tone.ts";
+import { KIND_BG } from "../../ui/tone.ts";
 
 interface ListenProps {
   id: string;

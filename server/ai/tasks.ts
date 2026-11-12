@@ -1,10 +1,11 @@
+import "server-only";
 // Called only by server route handlers. The direct Responses API request keeps
 // the API key and the manager's review data out of worker responses.
-import { HttpError } from "./errors.ts";
-import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, type Lang } from "./languages.ts";
+import { HttpError } from "../errors.ts";
+import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, type Lang } from "../../shared/languages.ts";
 import type {
   AddendumTranslations, Condition, ConditionKind, Draft, JudgeContext, QA, RawAssessment, Translation, Verdict,
-} from "./types.ts";
+} from "../../shared/types.ts";
 
 export const MODEL = "gpt-5.4-mini";
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { POST } from "../app/api/[action]/route.ts";
-import type { Action, ActionResult } from "../lib/api.ts";
+import type { Action, ActionResult } from "../server/actions.ts";
 
 let address = 0;
 

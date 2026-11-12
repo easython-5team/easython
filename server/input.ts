@@ -1,6 +1,7 @@
+import "server-only";
 import { invalid } from "./errors.ts";
-import { CONDITION_KINDS, isLang, type Lang } from "./languages.ts";
-import type { Condition, ConditionKind, Draft } from "./types.ts";
+import { CONDITION_KINDS, isLang, type Lang } from "../shared/languages.ts";
+import type { Condition, ConditionKind, Draft } from "../shared/types.ts";
 
 export { invalid };
 

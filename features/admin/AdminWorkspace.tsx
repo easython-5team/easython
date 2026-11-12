@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang } from "../lib/languages.ts";
-import type { Condition, ConditionKind, Draft, PreviewResult, RecentNotice } from "../lib/types.ts";
-import NoticeView from "./NoticeView";
-import { post } from "./request";
-import { useSpeaker } from "./speech";
-import FloatingError from "./FloatingError";
-import { KIND_BG } from "./tone.ts";
+import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang } from "../../shared/languages.ts";
+import type { Condition, ConditionKind, Draft, PreviewResult, RecentNotice } from "../../shared/types.ts";
+import NoticeView from "../worker/NoticeView";
+import { post } from "../../ui/request";
+import { useSpeaker } from "../worker/speech";
+import FloatingError from "../../ui/FloatingError";
+import { KIND_BG } from "../../ui/tone.ts";
 
 const example = `[강풍 대비 옥상 작업 중단 안내]
 

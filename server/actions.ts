@@ -1,3 +1,4 @@
+import "server-only";
 // Every API action, its input validation and its response type. The route
 // handler dispatches here; the client derives response types from this map.
 import { invalid } from "./errors.ts";

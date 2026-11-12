@@ -1,8 +1,9 @@
+import "server-only";
 // Deterministic layer between the model and the worker. The model proposes a
 // per-condition assessment; this module checks the claims against what the
 // worker actually said and alone decides the conversation state.
-import type { WorkerText } from "./languages.ts";
-import type { Assessed, CheckStatus, RawAssessment, Turn, TurnState, Verdict } from "./types.ts";
+import type { WorkerText } from "../shared/languages.ts";
+import type { Assessed, CheckStatus, RawAssessment, Turn, TurnState, Verdict } from "../shared/types.ts";
 
 export const TERMINAL_STATES: ReadonlySet<TurnState> = new Set(["understood", "guidance"]);
 export const MAX_TURNS = 6;

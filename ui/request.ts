@@ -1,4 +1,4 @@
-import type { Action, ActionResult } from "../lib/api.ts";
+import type { Action, ActionResult } from "../shared/api-types.ts";
 
 /** Calls an API action; the response type follows the server's action map. */
 export async function post<A extends Action>(

@@ -1,10 +1,11 @@
+import "server-only";
 // Keyless demo engine. Same interface as lib/ai.js, backed by a scripted
 // rooftop-wind scenario in English and Vietnamese so the team can rehearse
 // and design screens without an API key. Storage, sessions, escalations and
 // the deterministic decision layer are the real ones.
 import { HttpError } from "./errors.ts";
-import type { Lang } from "./languages.ts";
-import type { AddendumTranslations, Draft, JudgeContext, RawAssessment, Translation, Verdict } from "./types.ts";
+import type { Lang } from "../shared/languages.ts";
+import type { AddendumTranslations, Draft, JudgeContext, RawAssessment, Translation, Verdict } from "../shared/types.ts";
 
 export const demoNotice = `[강풍 대비 옥상 작업 중단 안내]
 

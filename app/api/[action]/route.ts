@@ -1,5 +1,5 @@
-import { actions, isAction, type Action, type Body } from "../../../lib/api.ts";
-import { HttpError, invalid } from "../../../lib/errors.ts";
+import { actions, isAction, type Action, type Body } from "../../../server/actions.ts";
+import { HttpError, invalid } from "../../../server/errors.ts";
 
 export const runtime = "nodejs";
 

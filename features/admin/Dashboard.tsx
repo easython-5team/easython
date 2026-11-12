@@ -2,11 +2,11 @@
 
 import QRCode from "qrcode";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
-import { CONDITION_KINDS, isLang, LANGUAGES } from "../lib/languages.ts";
-import type { CheckStatus, Condition, DashboardEscalation, DashboardView, DashboardWorker, TurnState, WorkerStatus } from "../lib/types.ts";
-import FloatingError from "./FloatingError";
-import { post } from "./request";
-import { CHECK_BG, CHECK_ICON, KIND_BG, TONE_BG, type Tone } from "./tone.ts";
+import { CONDITION_KINDS, isLang, LANGUAGES } from "../../shared/languages.ts";
+import type { CheckStatus, Condition, DashboardEscalation, DashboardView, DashboardWorker, TurnState, WorkerStatus } from "../../shared/types.ts";
+import FloatingError from "../../ui/FloatingError";
+import { post } from "../../ui/request";
+import { CHECK_BG, CHECK_ICON, KIND_BG, TONE_BG, type Tone } from "../../ui/tone.ts";
 
 const STATUS: Record<WorkerStatus, { label: string; tone: Tone }> = {
   understood: { label: "이해 확인", tone: "ok" },

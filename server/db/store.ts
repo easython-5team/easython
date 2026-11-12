@@ -1,13 +1,14 @@
+import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
-import { fail } from "./errors.ts";
-import type { Lang } from "./languages.ts";
+import { fail } from "../errors.ts";
+import type { Lang } from "../../shared/languages.ts";
 import type {
   Addendum, AddendumTranslations, Draft, Escalation, Notice, RecentNotice, Session, Translations, Turn, TurnRecord,
   WorkerNotice,
-} from "./types.ts";
+} from "../../shared/types.ts";
 
 let connection: DatabaseSync | undefined;
 

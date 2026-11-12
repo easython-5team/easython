@@ -1,16 +1,17 @@
-import * as live from "./ai.ts";
+import "server-only";
+import * as live from "./ai/tasks.ts";
 import { decide, MAX_TURNS, mergeAssessment, TERMINAL_STATES, verifyAssessment } from "./decide.ts";
 import * as demo from "./demo.ts";
 import { fail } from "./errors.ts";
-import { WORKER_LANGS, WORKER_TEXT, type Lang } from "./languages.ts";
+import { WORKER_LANGS, WORKER_TEXT, type Lang } from "../shared/languages.ts";
 import {
   createSession, dashboard, getEscalation, getNotice, getPreview, getSession, getTurns, publishPreview,
   recordTurn, resolveEscalation, savePreview, sessionEscalations, workerNotice,
-} from "./store.ts";
+} from "./db/store.ts";
 import type {
   Assessed, DashboardView, Draft, Engine, InputMode, Notice, PreviewResult, SessionView, Translation, Translations, Turn,
   WorkerNotice, WorkerStatus, WorkerTurn,
-} from "./types.ts";
+} from "../shared/types.ts";
 
 // Both modules must satisfy the same contract; the compiler checks it here.
 const engines: { live: Engine; demo: Engine } = { live, demo };

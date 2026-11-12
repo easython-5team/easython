@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Shell from "../../../components/Shell";
-import WorkerApp from "../../../components/WorkerApp";
-import { getNotice } from "../../../lib/store.ts";
+import Shell from "../../../ui/Shell";
+import WorkerApp from "../../../features/worker/WorkerApp";
+import { getNotice } from "../../../server/db/store.ts";
 
 export const dynamic = "force-dynamic";
 

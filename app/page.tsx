@@ -1,7 +1,7 @@
-import AdminWorkspace from "../components/AdminWorkspace";
-import Shell from "../components/Shell";
-import { demoNotice } from "../lib/demo.ts";
-import { recentNotices } from "../lib/store.ts";
+import AdminWorkspace from "../features/admin/AdminWorkspace";
+import Shell from "../ui/Shell";
+import { demoNotice } from "../server/demo.ts";
+import { recentNotices } from "../server/db/store.ts";
 
 export const dynamic = "force-dynamic";
 

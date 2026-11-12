@@ -5,7 +5,7 @@
 // no manual memoization, no ref writes during render, and browser
 // capabilities are read through useSyncExternalStore.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { LANGUAGES, type Lang } from "../lib/languages.ts";
+import { LANGUAGES, type Lang } from "../../shared/languages.ts";
 
 /* ---------- minimal Web Speech recognition typings (not in lib.dom) ---------- */
 

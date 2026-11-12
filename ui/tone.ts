@@ -1,6 +1,6 @@
 // Meaning → color. Every screen takes its condition and status colors from here
 // so a color always means the same thing (see the design-tone spec).
-import type { CheckStatus, ConditionKind, TurnState } from "../lib/types.ts";
+import type { CheckStatus, ConditionKind, TurnState } from "../shared/types.ts";
 
 export const KIND_BG: Record<ConditionKind, string> = {
   time: "bg-time text-white",

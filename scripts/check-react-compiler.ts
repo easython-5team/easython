@@ -12,7 +12,8 @@ interface CompilerEvent {
   detail?: { reason?: string; options?: { reason?: string } } | string;
 }
 
-const files = readdirSync("components").filter(f => /\.tsx?$/.test(f)).map(f => join("components", f));
+const dirs = ["features/admin", "features/worker", "ui"];
+const files = dirs.flatMap(dir => readdirSync(dir).filter(f => /\.tsx?$/.test(f)).map(f => join(dir, f)));
 const compiled: string[] = [];
 const problems: string[] = [];
 

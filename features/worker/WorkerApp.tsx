@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang, type WorkerText } from "../lib/languages.ts";
-import type { InputMode, SessionView, TurnState } from "../lib/types.ts";
+import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang, type WorkerText } from "../../shared/languages.ts";
+import type { InputMode, SessionView, TurnState } from "../../shared/types.ts";
 import NoticeView, { ListenButton, SituationCard } from "./NoticeView";
-import { post } from "./request";
+import { post } from "../../ui/request";
 import { useRecognition, useSpeaker } from "./speech";
-import { CHECK_BG, CHECK_ICON, TURN_BG } from "./tone.ts";
+import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 
 const TERMINAL: TurnState[] = ["understood", "guidance"];
 const LANG_BG = ["bg-time text-white", "bg-except text-ink", "bg-action text-ink", "bg-place text-ink"];

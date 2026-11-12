@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { demoManagerAnswer, demoNotice } from "../lib/demo.ts";
-import { closeStore } from "../lib/store.ts";
+import { demoManagerAnswer, demoNotice } from "../server/demo.ts";
+import { closeStore } from "../server/db/store.ts";
 import { client, must, type Call } from "./helpers.ts";
 
 process.env.EASYTHON_DEMO = "1";

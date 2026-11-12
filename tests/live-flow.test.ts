@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeNotice, MODEL, translateNotice } from "../lib/ai.ts";
-import { closeStore } from "../lib/store.ts";
+import { analyzeNotice, MODEL, translateNotice } from "../server/ai/tasks.ts";
+import { closeStore } from "../server/db/store.ts";
 import { client, must } from "./helpers.ts";
 import type { TestContext } from "node:test";
-import type { Draft, Lang } from "../lib/types.ts";
+import type { Draft, Lang } from "../shared/types.ts";
 
 delete process.env.EASYTHON_DEMO;
 process.env.SQLITE_PATH = ":memory:";

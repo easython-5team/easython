@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decide, mergeAssessment, verifyAssessment } from "../lib/decide.ts";
-import { WORKER_TEXT } from "../lib/languages.ts";
-import type { Assessed, Verdict } from "../lib/types.ts";
+import { decide, mergeAssessment, verifyAssessment } from "../server/decide.ts";
+import { WORKER_TEXT } from "../shared/languages.ts";
+import type { Assessed, Verdict } from "../shared/types.ts";
 
 const text = WORKER_TEXT.en;
 const conditionTexts: Record<string, string> = { c3: "Leave the tools.", c4: "Come down." };

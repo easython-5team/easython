@@ -1,3 +1,4 @@
+import "server-only";
 /** An error whose message is safe to show to the caller with the given HTTP status. */
 export class HttpError extends Error {
   readonly status: number;
