@@ -103,17 +103,14 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
   return (
     <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6" aria-busy={Boolean(busy)}>
-      <header className="flex flex-wrap items-end justify-between gap-4 pt-2 pb-1">
-        <div className="grid gap-1.5">
-          <h1>안녕하세요, 관리자님</h1>
-          <p className="text-lg font-semibold text-ink-2">좋은 하루에요.</p>
-        </div>
-        <ol className="flex items-center gap-1.5" aria-label="진행 단계">
+      <header className="grid gap-5 pt-2 pb-1">
+        <h1>안녕하세요, 관리자님<br />좋은 하루에요.</h1>
+        <ol className="flex w-full items-center" aria-label="진행 단계">
           {STEPS.map((label, i) => (
-            <li key={label} title={label} aria-current={i === step ? "step" : undefined} className="flex items-center gap-1.5">
-              {i > 0 && <span aria-hidden="true" className={"h-0.5 w-4 rounded-full " + (i <= step ? "bg-ink" : "bg-grid")} />}
+            <li key={label} title={label} aria-current={i === step ? "step" : undefined} className={"flex items-center gap-2 " + (i > 0 ? "flex-1 pl-2" : "")}>
+              {i > 0 && <span aria-hidden="true" className={"h-0.5 flex-1 rounded-full " + (i <= step ? "bg-ink" : "bg-grid")} />}
               <span className={"grid place-items-center rounded-full font-black transition-all "
-                + (i === step ? "size-9 bg-ink text-[15px] text-paper shadow-float"
+                + "shrink-0 " + (i === step ? "size-9 bg-ink text-[15px] text-paper shadow-float"
                   : i < step ? "size-7 bg-action text-xs text-ink" : "size-7 bg-paper text-xs text-ink-3")}>
                 {i + 1}
               </span>
