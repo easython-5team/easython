@@ -11,7 +11,7 @@ import FloatingError from "../../ui/FloatingError";
 import { KIND_BG } from "../../ui/tone.ts";
 
 const networkError = "요청을 완료하지 못했어요. 연결을 확인한 뒤 다시 시도하세요.";
-const STEPS = ["공지 작성", "AI 분석 검수", "작업자 화면 검수", "발행 · QR 공유"];
+const STEPS = ["작업 변경 사항 작성", "AI 노트 검수", "작업자 화면 검수", "발행 · QR 공유"];
 
 // Splits the source into plain and evidence-highlighted segments.
 interface Segment { text: string; id?: string }
@@ -103,30 +103,37 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
   return (
     <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6" aria-busy={Boolean(busy)}>
-      <ol className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="진행 단계">
-        {STEPS.map((label, i) => {
-          const state = i < step ? "bg-paper text-ink" : i === step ? "bg-ink text-paper shadow-float" : "bg-paper/60 text-ink-3";
-          const num = i < step ? "bg-action text-ink" : i === step ? "bg-except text-ink" : "bg-grid text-ink-2";
-          return (
-            <li key={label} aria-current={i === step ? "step" : undefined}
-              className={"flex items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-bold " + state}>
-              <span className={"grid size-6 place-items-center rounded-full text-xs font-black " + num}>{i < step ? "✓" : i + 1}</span>{label}
+      <header className="flex flex-wrap items-end justify-between gap-4 pt-2 pb-1">
+        <div className="grid gap-1.5">
+          <h1>안녕하세요, 관리자님</h1>
+          <p className="text-lg font-semibold text-ink-2">좋은 하루에요.</p>
+        </div>
+        <ol className="flex items-center gap-1.5" aria-label="진행 단계">
+          {STEPS.map((label, i) => (
+            <li key={label} title={label} aria-current={i === step ? "step" : undefined} className="flex items-center gap-1.5">
+              {i > 0 && <span aria-hidden="true" className={"h-0.5 w-4 rounded-full " + (i <= step ? "bg-ink" : "bg-grid")} />}
+              <span className={"grid place-items-center rounded-full font-black transition-all "
+                + (i === step ? "size-9 bg-ink text-[15px] text-paper shadow-float"
+                  : i < step ? "size-7 bg-action text-xs text-ink" : "size-7 bg-paper text-xs text-ink-3")}>
+                {i + 1}
+              </span>
+              <span className="sr-only">{label}</span>
             </li>
-          );
-        })}
-      </ol>
+          ))}
+        </ol>
+      </header>
 
       <div className={"grid items-start gap-5 " + (draft ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "max-w-[760px]")}>
         {/* ---------- source ---------- */}
         <section className="card">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2><label htmlFor="source">한국어 변경 지시</label></h2>
+            <h2><label htmlFor="source">작업 변경 사항</label></h2>
             {draft && (
               <button type="button" className="btn-text" disabled={Boolean(busy)} onClick={() => resetFrom(1)}>원문 수정</button>
             )}
           </div>
           {draft ? (
-            <div className="rounded-bubble bg-white p-4 text-[16px] leading-loose whitespace-pre-wrap" aria-label="원문과 AI가 찾은 근거">
+            <div className="rounded-bubble bg-white p-4 text-[16px] leading-loose whitespace-pre-wrap" aria-label="작업 변경 사항과 AI가 찾은 근거">
               {marks.map(({ text, id }, i) => id
                 ? <mark key={i} onMouseEnter={() => setFocus(id)} onMouseLeave={() => setFocus("")}
                     className={"cursor-default rounded-md px-0.5 text-ink transition " + KIND_BG[kinds.get(id) ?? "action"]
@@ -143,19 +150,8 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
           {!draft && (
             <div className="mt-4 flex flex-wrap gap-2">
               <button className="btn-primary" disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
-                {busy === "analyze" ? "AI가 지시를 분석하는 중…" : "AI로 변경 조건 분석"}
+                {busy === "analyze" ? "AI 노트를 만드는 중…" : "AI 노트 생성"}
               </button>
-            </div>
-          )}
-          {!draft && (
-            <div className="mt-6 rounded-bubble bg-white p-5">
-              <h3>AI가 하는 일</h3>
-              <ol className="mt-3 grid list-decimal gap-2.5 pl-5 text-sm text-ink-2 marker:font-bold marker:text-ink">
-                <li><strong className="mr-1.5 text-ink">조건 추출</strong> 원문을 시점·장소·행동·금지·예외 조건으로 나누고, 각 조건의 원문 근거를 표시해요.</li>
-                <li><strong className="mr-1.5 text-ink">상황 질문</strong> 평소 습관 때문에 놓치기 쉬운 조건을 작업자가 직접 말하게 하는 질문을 만들어요.</li>
-                <li><strong className="mr-1.5 text-ink">번역 검증</strong> 영어·베트남어로 번역한 뒤 다시 한국어로 역번역해 조건별 의미 보존을 확인해요.</li>
-                <li><strong className="mr-1.5 text-ink">조건별 판정</strong> 작업자의 답에서 인용 근거를 찾아 충족·누락·충돌을 가리고, 근거 없는 질문은 관리자에게 넘겨요.</li>
-              </ol>
             </div>
           )}
         </section>
@@ -164,7 +160,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
         {draft && (
           <section className="card">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2>AI가 찾은 지시 조건</h2>
+              <h2>AI 노트</h2>
               <span className="text-[13px] text-ink-2">체크한 조건을 작업자 답변에서 확인해요</span>
             </div>
             <label className="grid gap-1.5 text-sm font-bold">공지 제목
