@@ -6,9 +6,10 @@ import type { InputMode, SessionView, TurnState } from "../lib/types.ts";
 import NoticeView, { ListenButton } from "./NoticeView";
 import { post } from "./request";
 import { useRecognition, useSpeaker } from "./speech";
+import { CHECK_BG, CHECK_ICON, TURN_BG } from "./tone.ts";
 
 const TERMINAL: TurnState[] = ["understood", "guidance"];
-const ICON = { met: "✓", missing: "?", conflict: "✕" } as const;
+const LANG_BG = ["bg-time text-white", "bg-except text-ink", "bg-action text-ink", "bg-place text-ink"];
 const noSubscription = () => () => {};
 
 function storageKey(id: string) {
@@ -69,7 +70,7 @@ export default function WorkerApp({ id }: { id: string }) {
   }
 
   const restoring = savedId === undefined || (typeof savedId === "string" && !sessionId && !restoreFailed);
-  if (restoring) return <div className="worker-loading" aria-busy="true" />;
+  if (restoring) return <div className="min-h-[40vh]" aria-busy="true" />;
 
   if (sessionId && view && lang) {
     return <Conversation id={id} sessionId={sessionId} view={view} setView={setView} reload={load} t={t} lang={lang} />;
@@ -77,15 +78,19 @@ export default function WorkerApp({ id }: { id: string }) {
 
   if (!lang) {
     return (
-      <section className="lang-step">
-        <h1 className="bilingual">
-          {WORKER_LANGS.map(code => <span key={code} lang={code}>{WORKER_TEXT[code].chooseLanguage}</span>)}
+      <section className="grid gap-6 pt-4">
+        <h1 className="grid gap-1">
+          {WORKER_LANGS.map((code, i) => (
+            <span key={code} lang={code} className={i ? "text-[.62em] tracking-[-0.02em] text-ink-2" : ""}>{WORKER_TEXT[code].chooseLanguage}</span>
+          ))}
         </h1>
-        <div className="lang-buttons">
-          {WORKER_LANGS.map(code => (
-            <button key={code} type="button" className="lang-button" lang={code} onClick={() => setLang(code)}>
-              <span className="lang-native">{LANGUAGES[code].native}</span>
-              <span className="lang-code">{code.toUpperCase()}</span>
+        <div className="grid gap-3">
+          {WORKER_LANGS.map((code, i) => (
+            <button key={code} type="button" lang={code} onClick={() => setLang(code)}
+              className={"flex min-h-28 cursor-pointer items-end justify-between rounded-card p-6 text-left transition active:translate-y-px "
+                + (LANG_BG[i % LANG_BG.length] ?? "")}>
+              <span className="text-[28px] font-black tracking-[-0.05em]">{LANGUAGES[code].native}</span>
+              <span className="tag bg-white/70">{code.toUpperCase()}</span>
             </button>
           ))}
         </div>
@@ -94,14 +99,15 @@ export default function WorkerApp({ id }: { id: string }) {
   }
 
   return (
-    <form className="name-step" lang={lang} onSubmit={start}>
-      <button type="button" className="text-button back" onClick={() => setLang(null)}>← {LANGUAGES[lang].native}</button>
-      <label className="field big">{t.namePrompt}
-        <input autoFocus value={name} maxLength={40} placeholder={t.namePlaceholder} onChange={e => setName(e.target.value)} />
+    <form className="grid gap-4 pt-2" lang={lang} onSubmit={start}>
+      <button type="button" className="btn-text justify-self-start" onClick={() => setLang(null)}>← {LANGUAGES[lang].native}</button>
+      <label className="grid gap-3 text-[22px] font-black tracking-[-0.04em]">{t.namePrompt}
+        <input autoFocus value={name} maxLength={40} placeholder={t.namePlaceholder} className="!py-4 !text-[19px] font-semibold"
+          onChange={e => setName(e.target.value)} />
       </label>
-      <p className="hint">{t.nameHint}</p>
-      {error && <p role="alert" className="alert">{error}</p>}
-      <button className="primary wide" disabled={busy || !name.trim()}>{busy ? t.starting : t.start}</button>
+      <p className="text-sm text-ink-2">{t.nameHint}</p>
+      {error && <p role="alert" className="rounded-2xl bg-stop/20 px-4 py-3 text-sm font-semibold text-ink">{error}</p>}
+      <button className="btn-primary w-full !py-4 text-[17px]" disabled={busy || !name.trim()}>{busy ? t.starting : t.start}</button>
     </form>
   );
 }
@@ -171,75 +177,78 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     : recognition.error === "unsupported" ? t.speechUnsupported : t.speechFailed;
 
   return (
-    <div className="conversation" lang={lang}>
-      <p className="greeting">{view.name}</p>
+    <div className="grid gap-4" lang={lang}>
+      <p className="text-[15px] font-bold text-ink-2">{view.name}</p>
       <NoticeView notice={view.notice} t={t} speaker={speaker} />
 
-      <div className="turns" aria-live="polite">
+      <div className="grid gap-3 py-2" aria-live="polite">
         {turns.map(turn => {
           const managerAnswer = answers.get(turn.turn);
           return (
-            <div className="turn" key={turn.turn}>
-              <div className="bubble mine">
-                <span className="who">{t.you}{turn.mode === "voice" && <> · {t.viaVoice}</>}</span>
-                <p>{turn.answer}</p>
+            <div className="grid gap-2" key={turn.turn}>
+              <div className="max-w-[88%] justify-self-end rounded-bubble rounded-br-md bg-ink px-4 py-3 text-paper">
+                <span className="block text-xs font-bold text-ink-3">{t.you}{turn.mode === "voice" && <> · {t.viaVoice}</>}</span>
+                <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.answer}</p>
               </div>
-              <div className={"bubble reply state-" + turn.state}>
-                <div className="reply-head">
-                  <strong>{t.states[turn.state]}</strong>
+              <div className={"max-w-[94%] rounded-bubble rounded-bl-md p-4 text-ink shadow-soft " + TURN_BG[turn.state]}>
+                <div className="mb-2.5 flex items-center justify-between gap-3">
+                  <strong className="text-[15px] font-black tracking-[-0.03em]">{t.states[turn.state]}</strong>
                   <ListenButton id={"turn-" + turn.turn} text={turn.message} speaker={speaker} t={t} />
                 </div>
                 {turn.conditions.length > 0 && (
-                  <ul className="checks">
+                  <ul className="mb-2.5 grid gap-1.5">
                     {turn.conditions.map(c => (
-                      <li key={c.id} className={"check " + c.status}>
-                        <span className="check-icon" aria-hidden="true">{ICON[c.status]}</span>
+                      <li key={c.id} className="grid grid-cols-[24px_1fr] items-start gap-2 rounded-2xl bg-white/60 px-2.5 py-2 text-sm">
+                        <span aria-hidden="true" className={"grid size-6 place-items-center rounded-full text-[13px] font-black " + CHECK_BG[c.status]}>{CHECK_ICON[c.status]}</span>
                         <span>{c.text}</span>
                         <span className="sr-only">{t.condition[c.status]}</span>
                       </li>
                     ))}
                   </ul>
                 )}
-                <p className="reply-text">{turn.message}</p>
+                <p className="text-[16px] whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.message}</p>
                 {turn.state === "manager" && (
                   managerAnswer
-                    ? <div className="manager-answer"><strong>{t.managerAnswered}</strong><p>{managerAnswer}</p></div>
-                    : <p className="waiting"><span className="pulse" aria-hidden="true" />{t.waitingManager}</p>
+                    ? <div className="mt-3 rounded-2xl bg-white/70 px-3.5 py-3"><strong className="eyebrow text-ink">{t.managerAnswered}</strong><p>{managerAnswer}</p></div>
+                    : <p className="mt-3 flex items-center gap-2 text-sm font-bold"><span aria-hidden="true" className="size-2.5 animate-pulse-ring rounded-full bg-ink" />{t.waitingManager}</p>
                 )}
               </div>
             </div>
           );
         })}
-        <div ref={bottom} />
       </div>
 
       {finished ? (
-        <p className={"done " + latest}>{latest === "understood" ? t.doneUnderstood : t.doneGuidance}</p>
+        <p className={"rounded-card p-5 text-center text-lg font-black tracking-[-0.03em] " + (latest === "understood" ? "bg-action" : "bg-stop")}>
+          {latest === "understood" ? t.doneUnderstood : t.doneGuidance}
+        </p>
       ) : (
-        <form className="answer-box" onSubmit={submit}>
-          <label htmlFor="answer" className="answer-label">{latest === "followup" ? t.states.followup : t.yourAnswer}</label>
-          <p className="hint">{t.answerHint}</p>
+        <form className="sticky bottom-3 grid gap-2.5 rounded-card bg-white p-4 shadow-float" onSubmit={submit}>
+          <label htmlFor="answer" className="text-[17px] font-black tracking-[-0.03em]">{latest === "followup" ? t.states.followup : t.yourAnswer}</label>
+          <p className="text-[13px] text-ink-2">{t.answerHint}</p>
           <textarea id="answer" rows={3} value={recognition.listening ? recognition.interim || answer : answer}
-            placeholder={t.placeholder} disabled={busy || recognition.listening}
+            placeholder={t.placeholder} disabled={busy || recognition.listening} className="!bg-paper text-[17px]"
             onChange={e => { setAnswer(e.target.value); if (!e.target.value) setMode("text"); }} />
-          {mode === "voice" && answer && !recognition.listening && <p className="hint review">{t.speechReview}</p>}
-          {speechError && <p className="hint warn">{speechError}</p>}
-          {error && <p role="alert" className="alert">{error}</p>}
-          <div className="answer-actions">
+          {mode === "voice" && answer && !recognition.listening && <p className="text-[13px] font-semibold text-time">{t.speechReview}</p>}
+          {speechError && <p className="text-[13px] font-semibold text-stop">{speechError}</p>}
+          {error && <p role="alert" className="rounded-2xl bg-stop/20 px-4 py-3 text-sm font-semibold">{error}</p>}
+          <div className="grid grid-cols-2 gap-2">
             {recognition.supported ? (
-              <button type="button" className={"mic" + (recognition.listening ? " on" : "")} disabled={busy}
-                aria-pressed={recognition.listening}
+              <button type="button" disabled={busy} aria-pressed={recognition.listening}
+                className={recognition.listening ? "btn-primary !bg-stop !text-ink" : "btn-secondary"}
                 onClick={() => (recognition.listening ? recognition.stop() : recognition.start())}>
-                <span className="mic-icon" aria-hidden="true" />
+                <span aria-hidden="true" className="h-4 w-2.5 rounded-full bg-current" />
                 {recognition.listening ? t.listening : t.speak}
               </button>
-            ) : <p className="hint">{t.speechUnsupported}</p>}
-            <button className="primary" disabled={busy || recognition.listening || !answer.trim()}>
+            ) : <p className="self-center text-[13px] text-ink-2">{t.speechUnsupported}</p>}
+            <button className="btn-primary" disabled={busy || recognition.listening || !answer.trim()}>
               {busy ? t.checking : t.send}
             </button>
           </div>
         </form>
       )}
+      {/* After the answer box so the newest reply scrolls into view above it, not under it. */}
+      <div ref={bottom} />
     </div>
   );
 }

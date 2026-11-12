@@ -7,6 +7,8 @@ import type { Condition, ConditionKind, Draft, PreviewResult, RecentNotice } fro
 import NoticeView from "./NoticeView";
 import { post } from "./request";
 import { useSpeaker } from "./speech";
+import FloatingError from "./FloatingError";
+import { KIND_BG } from "./tone.ts";
 
 const example = `[강풍 대비 옥상 작업 중단 안내]
 
@@ -103,53 +105,62 @@ export default function AdminWorkspace({ demoSource, recent }: { demoSource: str
   const kinds = new Map<string, ConditionKind>(draft?.conditions.map(c => [c.id, c.kind]));
 
   return (
-    <main className="admin" aria-busy={Boolean(busy)}>
-      <ol className="stepper" aria-label="진행 단계">
-        {STEPS.map((label, i) => (
-          <li key={label} className={i < step ? "done" : i === step ? "current" : ""} aria-current={i === step ? "step" : undefined}>
-            <span className="step-num">{i + 1}</span>{label}
-          </li>
-        ))}
+    <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6" aria-busy={Boolean(busy)}>
+      <ol className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="진행 단계">
+        {STEPS.map((label, i) => {
+          const state = i < step ? "bg-paper text-ink" : i === step ? "bg-ink text-paper shadow-float" : "bg-paper/60 text-ink-3";
+          const num = i < step ? "bg-action text-ink" : i === step ? "bg-except text-ink" : "bg-grid text-ink-2";
+          return (
+            <li key={label} aria-current={i === step ? "step" : undefined}
+              className={"flex items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-bold " + state}>
+              <span className={"grid size-6 place-items-center rounded-full text-xs font-black " + num}>{i < step ? "✓" : i + 1}</span>{label}
+            </li>
+          );
+        })}
       </ol>
 
-      <div className="admin-grid">
+      <div className={"grid items-start gap-5 " + (draft ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "max-w-[760px]")}>
         {/* ---------- source ---------- */}
-        <section className="panel source-panel">
-          <div className="panel-heading">
+        <section className="card">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2><label htmlFor="source">한국어 변경 지시</label></h2>
             {draft ? (
-              <button type="button" className="text-button" disabled={Boolean(busy)} onClick={() => resetFrom(1)}>원문 수정</button>
+              <button type="button" className="btn-text" disabled={Boolean(busy)} onClick={() => resetFrom(1)}>원문 수정</button>
             ) : (
-              <button type="button" className="text-button" disabled={Boolean(busy)}
+              <button type="button" className="btn-text" disabled={Boolean(busy)}
                 onClick={() => { setSource(demoSource || example); resetFrom(1); }}>예시 불러오기</button>
             )}
           </div>
           {draft ? (
-            <div className="source-marked" aria-label="원문과 AI가 찾은 근거">
+            <div className="rounded-bubble bg-white p-4 text-[16px] leading-loose whitespace-pre-wrap" aria-label="원문과 AI가 찾은 근거">
               {marks.map(({ text, id }, i) => id
-                ? <mark key={i} className={focus === id ? "active" : ""} onMouseEnter={() => setFocus(id)}
-                    onMouseLeave={() => setFocus("")}>{text}<sup>{id.slice(1)}</sup></mark>
+                ? <mark key={i} onMouseEnter={() => setFocus(id)} onMouseLeave={() => setFocus("")}
+                    className={"cursor-default rounded-md px-0.5 text-ink transition " + KIND_BG[kinds.get(id) ?? "action"]
+                      + (focus === id ? " ring-2 ring-ink" : " opacity-80")}>
+                    {text}<sup className="ml-0.5 text-[10px] font-black">{id.slice(1)}</sup>
+                  </mark>
                 : <span key={i}>{text}</span>)}
             </div>
           ) : (
             <textarea id="source" rows={11} value={source} disabled={Boolean(busy)} onChange={e => setSource(e.target.value)}
+              className="min-h-[270px] text-[16px] leading-relaxed"
               placeholder="언제부터, 어디서, 무엇이 평소와 다르게 바뀌는지 평소처럼 적어 주세요." />
           )}
           {!draft && (
-            <div className="actions">
-              <button className="primary" disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button className="btn-primary" disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
                 {busy === "analyze" ? "AI가 지시를 분석하는 중…" : "AI로 변경 조건 분석"}
               </button>
             </div>
           )}
           {!draft && (
-            <div className="ai-explainer">
+            <div className="mt-6 rounded-bubble bg-white p-5">
               <h3>AI가 하는 일</h3>
-              <ol>
-                <li><strong>조건 추출</strong> 원문을 시점·장소·행동·금지·예외 조건으로 나누고, 각 조건의 원문 근거를 표시해요.</li>
-                <li><strong>상황 질문</strong> 평소 습관 때문에 놓치기 쉬운 조건을 작업자가 직접 말하게 하는 질문을 만들어요.</li>
-                <li><strong>번역 검증</strong> 영어·베트남어로 번역한 뒤 다시 한국어로 역번역해 조건별 의미 보존을 확인해요.</li>
-                <li><strong>조건별 판정</strong> 작업자의 답에서 인용 근거를 찾아 충족·누락·충돌을 가리고, 근거 없는 질문은 관리자에게 넘겨요.</li>
+              <ol className="mt-3 grid list-decimal gap-2.5 pl-5 text-sm text-ink-2 marker:font-bold marker:text-ink">
+                <li><strong className="mr-1.5 text-ink">조건 추출</strong> 원문을 시점·장소·행동·금지·예외 조건으로 나누고, 각 조건의 원문 근거를 표시해요.</li>
+                <li><strong className="mr-1.5 text-ink">상황 질문</strong> 평소 습관 때문에 놓치기 쉬운 조건을 작업자가 직접 말하게 하는 질문을 만들어요.</li>
+                <li><strong className="mr-1.5 text-ink">번역 검증</strong> 영어·베트남어로 번역한 뒤 다시 한국어로 역번역해 조건별 의미 보존을 확인해요.</li>
+                <li><strong className="mr-1.5 text-ink">조건별 판정</strong> 작업자의 답에서 인용 근거를 찾아 충족·누락·충돌을 가리고, 근거 없는 질문은 관리자에게 넘겨요.</li>
               </ol>
             </div>
           )}
@@ -157,49 +168,49 @@ export default function AdminWorkspace({ demoSource, recent }: { demoSource: str
 
         {/* ---------- AI analysis review ---------- */}
         {draft && (
-          <section className="panel analysis-panel">
-            <div className="panel-heading">
+          <section className="card">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2>AI가 찾은 지시 조건</h2>
-              <span className="muted small">체크한 조건을 작업자 답변에서 확인해요</span>
+              <span className="text-[13px] text-ink-2">체크한 조건을 작업자 답변에서 확인해요</span>
             </div>
-            <label className="field">공지 제목
+            <label className="grid gap-1.5 text-sm font-bold">공지 제목
               <input value={draft.title} onChange={e => updateDraft({ title: e.target.value })} />
             </label>
-            <ul className="conditions">
+            <ul className="mt-4 mb-2.5 grid gap-2.5">
               {draft.conditions.map(c => (
-                <li key={c.id} className={"condition kind-" + c.kind + (focus === c.id ? " active" : "") + (c.check ? " checked" : "")}
-                  onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus("")}>
-                  <div className="condition-top">
-                    <span className="cid">{c.id.slice(1)}</span>
+                <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus("")}
+                  className={"grid gap-2 rounded-bubble bg-white p-3.5 transition " + (focus === c.id ? "ring-2 ring-ink" : "")}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={"grid size-6 place-items-center rounded-full text-xs font-black " + KIND_BG[c.kind]}>{c.id.slice(1)}</span>
                     <select aria-label="조건 종류" value={c.kind} onChange={e => updateCondition(c.id, { kind: e.target.value as ConditionKind })}>
                       {Object.entries(CONDITION_KINDS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                     </select>
-                    <label className="check-toggle">
+                    <label className="inline-flex items-center gap-1.5 text-[13px] font-bold">
                       <input type="checkbox" checked={c.check} onChange={e => updateCondition(c.id, { check: e.target.checked })} />
                       답변에서 확인
                     </label>
-                    <button type="button" className="text-button danger" aria-label={`조건 ${c.id.slice(1)} 삭제`}
+                    <button type="button" className="btn-text ml-auto text-[13px] !text-stop" aria-label={`조건 ${c.id.slice(1)} 삭제`}
                       disabled={draft.conditions.length === 1}
                       onClick={() => updateDraft({ conditions: draft.conditions.filter(x => x.id !== c.id) })}>삭제</button>
                   </div>
-                  <input className="condition-label" aria-label="조건 문장" value={c.label} placeholder="조건을 한 문장으로"
+                  <input className="font-semibold" aria-label="조건 문장" value={c.label} placeholder="조건을 한 문장으로"
                     onChange={e => updateCondition(c.id, { label: e.target.value })} />
-                  <p className="evidence">{c.evidence ? <>근거 <q>{c.evidence}</q></> : <em>관리자가 직접 추가한 조건</em>}</p>
+                  <p className="text-[13px] text-ink-2">{c.evidence ? <>근거 <q className="rounded-md bg-paper px-1 text-ink">{c.evidence}</q></> : <em>관리자가 직접 추가한 조건</em>}</p>
                 </li>
               ))}
             </ul>
-            <button type="button" className="text-button" onClick={addCondition}>+ 조건 직접 추가</button>
+            <button type="button" className="btn-text" onClick={addCondition}>+ 조건 직접 추가</button>
 
-            <div className="question-card">
-              <label className="field">작업자에게 물을 상황 질문
-                <textarea rows={2} value={draft.question} onChange={e => updateDraft({ question: e.target.value })} />
+            <div className="mt-5 grid gap-2 rounded-bubble bg-ink p-4 text-paper">
+              <label className="grid gap-2 text-sm font-bold text-ink-3">작업자에게 물을 상황 질문
+                <textarea rows={2} value={draft.question} className="font-bold" onChange={e => updateDraft({ question: e.target.value })} />
               </label>
-              {draft.questionReason && <p className="reason"><strong>AI가 이 질문을 만든 이유</strong> {draft.questionReason}</p>}
+              {draft.questionReason && <p className="text-[13px] text-ink-3"><strong className="mr-1.5 text-except">AI가 이 질문을 만든 이유</strong>{draft.questionReason}</p>}
             </div>
 
             {!preview && (
-              <div className="actions">
-                <button className="primary" disabled={Boolean(busy) || !canPreview} onClick={makePreview}>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button className="btn-primary" disabled={Boolean(busy) || !canPreview} onClick={makePreview}>
                   {busy === "preview" ? "번역하고 역번역으로 검증하는 중…" : `작업자 화면 미리보기 (${WORKER_LANGS.map(l => l.toUpperCase()).join("·")} 번역 + 검증)`}
                 </button>
               </div>
@@ -210,65 +221,70 @@ export default function AdminWorkspace({ demoSource, recent }: { demoSource: str
 
       {/* ---------- worker preview & translation check ---------- */}
       {preview && translation && draft && (
-        <section className="panel preview-panel">
-          <div className="panel-heading">
+        <section className="card">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <h2>작업자 화면 검수</h2>
-            <div className="tabs" role="tablist" aria-label="미리보기 언어">
+            <div className="flex gap-1.5 rounded-full bg-white p-1" role="tablist" aria-label="미리보기 언어">
               {WORKER_LANGS.map(lang => {
                 const bad = preview.translations[lang].checks.some(c => !c.preserved);
                 return (
                   <button key={lang} role="tab" type="button" aria-selected={previewLang === lang}
-                    className={"tab" + (previewLang === lang ? " selected" : "")}
+                    className={"inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold "
+                      + (previewLang === lang ? "bg-ink text-paper" : "text-ink-2 hover:text-ink")}
                     onClick={() => { speaker.stop(); setPreviewLang(lang); }}>
-                    {LANGUAGES[lang].native}{bad && <span className="tab-warn" aria-label="검증 경고">!</span>}
+                    {LANGUAGES[lang].native}{bad && <span className="grid size-[18px] place-items-center rounded-full bg-stop text-xs text-ink" aria-label="검증 경고">!</span>}
                   </button>
                 );
               })}
             </div>
           </div>
-          <div className="preview-grid">
-            <div className="phone" aria-label="작업자 휴대폰 화면 미리보기">
-              <div className="phone-notch" aria-hidden="true" />
-              <div className="phone-screen">
+          <div className="grid items-start gap-7 lg:grid-cols-[380px_minmax(0,1fr)]">
+            <div className="mx-auto w-full max-w-[380px] rounded-[46px] bg-ink p-2.5 shadow-float" aria-label="작업자 휴대폰 화면 미리보기">
+              <div className="max-h-[680px] overflow-y-auto rounded-[38px] bg-canvas px-3 pt-10 pb-4">
+                <div aria-hidden="true" className="mx-auto -mt-7 mb-4 h-6 w-24 rounded-full bg-ink" />
                 <NoticeView t={WORKER_TEXT[previewLang]} speaker={speaker}
                   notice={{ ...translation, lang: previewLang, addenda: [], conditions: translation.conditions.map(c => ({ ...c, kind: kinds.get(c.id) })) }} />
               </div>
             </div>
-            <div className="verify">
-              <h3>번역 의미 검증 <span className="muted small">번역 → 독립 역번역 → 조건별 비교</span></h3>
-              <table className="verify-table">
-                <thead><tr><th>승인한 조건</th><th>{LANGUAGES[previewLang].native}</th><th>결과</th></tr></thead>
-                <tbody>
-                  {draft.conditions.map(c => {
-                    const check = translation.checks.find(x => x.id === c.id);
-                    const text = translation.conditions.find(x => x.id === c.id)?.text;
-                    return (
-                      <tr key={c.id} className={check?.preserved ? "ok" : "warn"}>
-                        <td><span className="cid">{c.id.slice(1)}</span>{c.label}</td>
-                        <td lang={previewLang}>{text}</td>
-                        <td>{check?.preserved ? <span className="pill ok">의미 보존</span>
-                          : <><span className="pill warn">확인 필요</span><p className="note">{check?.note}</p></>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <details className="back-translation">
+            <div className="min-w-0">
+              <h3 className="mb-3 flex flex-wrap items-baseline gap-2.5">번역 의미 검증 <span className="text-[13px] font-medium text-ink-2">번역 → 독립 역번역 → 조건별 비교</span></h3>
+              <div className="overflow-x-auto rounded-bubble bg-white px-3">
+                <table className="w-full border-collapse text-sm">
+                  <thead><tr className="border-b border-grid text-left text-xs text-ink-2">
+                    <th className="px-2 py-2.5">승인한 조건</th><th className="px-2 py-2.5">{LANGUAGES[previewLang].native}</th><th className="px-2 py-2.5">결과</th>
+                  </tr></thead>
+                  <tbody>
+                    {draft.conditions.map(c => {
+                      const check = translation.checks.find(x => x.id === c.id);
+                      const text = translation.conditions.find(x => x.id === c.id)?.text;
+                      return (
+                        <tr key={c.id} className={"border-b border-canvas align-top last:border-0 " + (check?.preserved ? "" : "bg-stop/10")}>
+                          <td className="px-2 py-3"><span className={"mr-2 inline-grid size-5 place-items-center rounded-full text-[11px] font-black " + KIND_BG[c.kind]}>{c.id.slice(1)}</span>{c.label}</td>
+                          <td className="px-2 py-3" lang={previewLang}>{text}</td>
+                          <td className="px-2 py-3">{check?.preserved ? <span className="tag bg-action">의미 보존</span>
+                            : <><span className="tag bg-stop">확인 필요</span><p className="mt-1 text-xs text-ink-2">{check?.note}</p></>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <details className="mt-3 text-sm">
                 <summary>역번역 전문 보기</summary>
-                <p>{translation.backTranslation}</p>
+                <p className="mt-2 rounded-2xl bg-white p-3 whitespace-pre-wrap">{translation.backTranslation}</p>
               </details>
 
-              <div className="publish-box">
+              <div className="mt-6 grid justify-items-start gap-3 rounded-bubble bg-white p-5">
                 {mismatch.length > 0 && (
-                  <label className="accept">
+                  <label className="flex items-center gap-2 text-sm font-bold">
                     <input type="checkbox" checked={acceptMismatch} onChange={e => setAcceptMismatch(e.target.checked)} />
                     번역 검증 경고 {mismatch.length}건을 확인했고, 이대로 발행합니다.
                   </label>
                 )}
-                <button className="primary big" disabled={Boolean(busy) || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
+                <button className="btn-primary !px-6 !py-4 text-base" disabled={Boolean(busy) || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
                   {busy === "publish" ? "발행 중…" : "승인하고 발행 · QR 만들기"}
                 </button>
-                <p className="muted small">발행 시에는 AI를 다시 호출하지 않아요. 지금 검수한 문장이 그대로 작업자에게 전달돼요.</p>
+                <p className="text-[13px] text-ink-2">발행 시에는 AI를 다시 호출하지 않아요. 지금 검수한 문장이 그대로 작업자에게 전달돼요.</p>
               </div>
             </div>
           </div>
@@ -276,17 +292,20 @@ export default function AdminWorkspace({ demoSource, recent }: { demoSource: str
       )}
 
       {recent.length > 0 && (
-        <section className="recent">
+        <section className="card">
           <h2>발행한 공지</h2>
-          <ul>
+          <ul className="mt-3 grid gap-1.5">
             {recent.map(n => (
-              <li key={n.id}><a href={"/notices/" + n.id}>{n.title}</a><span className="muted small">v{n.version} · {n.createdAt}</span></li>
+              <li key={n.id} className="flex flex-wrap items-baseline gap-3">
+                <a className="font-bold text-ink underline-offset-4 hover:underline" href={"/notices/" + n.id}>{n.title}</a>
+                <span className="text-[13px] text-ink-2">v{n.version} · {n.createdAt}</span>
+              </li>
             ))}
           </ul>
         </section>
       )}
 
-      {error && <p role="alert" className="alert floating-error">{error}<button className="text-button" onClick={() => setError("")}>닫기</button></p>}
+      {error && <FloatingError message={error} onClose={() => setError("")} />}
     </main>
   );
 }
