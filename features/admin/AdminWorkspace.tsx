@@ -274,7 +274,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                 )}
               </div>
 
-              <div className="mt-6 grid justify-items-start gap-3 rounded-bubble bg-white p-5">
+              <div className="mt-6 grid justify-items-center gap-3">
                 {mismatch.length > 0 && (
                   <div className="grid gap-2 rounded-2xl bg-stop/15 p-4">
                     <p className="text-sm font-bold">번역에서 의미가 달라졌을 수 있는 조건이 {mismatch.length}건 있어요.</p>
@@ -293,7 +293,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                   </div>
                 )}
                 <button className="btn-primary !px-6 !py-4 text-base" aria-busy={busy === "publish"} disabled={Boolean(busy) || questionChanged || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
-                  {busy === "publish" ? <><Loading size={22} tone="light" />발행하는 중</> : "승인하고 발행 · QR 만들기"}
+                  {busy === "publish" ? <><Loading size={22} tone="light" />전송하는 중</> : "작업자에게 전송하기"}
                 </button>
               </div>
             </div>
