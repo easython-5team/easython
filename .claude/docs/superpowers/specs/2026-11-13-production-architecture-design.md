@@ -1,6 +1,6 @@
 # 실서비스 아키텍처 설계
 
-작성일: 2026-11-13 · 상태: 섹션 1·2 승인·구현 대상, 섹션 3(AI)·4(배포) 보류
+작성일: 2026-11-13 · 상태: 섹션 1 구현 대상, 섹션 2(DB)·3(AI)·4(배포) 보류
 
 ## 목표와 범위
 
@@ -11,11 +11,11 @@
 | 항목 | 결정 | 이유 |
 | --- | --- | --- |
 | 데모 모드 | 제거 | 실서비스만 유지한다. |
-| DB | SQLite 계열 유지: 로컬은 파일, Vercel은 Turso(libSQL) | 지금 스키마와 SQL을 거의 그대로 살린다. Vercel 서버리스는 로컬 파일을 유지하지 못한다. |
+| DB | 보류. 지금 `node:sqlite` 로컬 파일을 그대로 쓰고 `server/db/`로 위치만 옮긴다 | 2026-11-13 결정: DB 전환은 이번에 하지 않는다. 섹션 2의 libSQL/Turso 설계는 배포를 다시 논의할 때 쓴다. Vercel 서버리스는 로컬 파일을 유지하지 못하므로 배포 전에는 전환이 필요하다. |
 | 관리자 로그인 | 이번 범위에서 제외 | 다음 단계에서 현장(site)과 함께 추가한다. |
 | 장기 목표 | 현장 여러 개, 관리자 여러 명 | 로그인 단계에서 `sites`·멤버 테이블을 추가할 수 있게 경계를 남긴다. |
 | AI 공급자 | 보류. 지금 OpenAI 호출 코드를 동작 변경 없이 `server/ai/`로 옮기기만 한다 | Grok은 무료로 쓸 수 있는 경우에만 쓰기로 했고, 무료 제공 여부가 공식 자료로 확인되지 않았다. 섹션 3 참고. |
-| 배포 | 보류 | 섹션 1·2를 끝낸 뒤 다시 논의한다. 섹션 4 참고. |
+| 배포 | 보류 | 섹션 1을 끝낸 뒤 DB 전환과 함께 다시 논의한다. 섹션 4 참고. |
 | 테스트 | 흐름 테스트 제거. 판정 상태 머신 테스트(`decide.test.ts`)만 유지 | 사용자는 테스트가 없어도 된다고 했다. 이 파일은 AI·DB 없이 도는 순수 로직 테스트라 유지 비용이 거의 없고 안전 규칙을 지키므로 남긴다. |
 
 ### 범위 밖
@@ -45,13 +45,11 @@ server/                       서버 전용, 모든 파일 첫 줄 import "serve
     provider.ts               공급자 선택과 요청 (한 곳)
     tasks.ts                  분석 · 번역 · 역번역 · 판정 (프롬프트 + 스키마)
   db/
-    client.ts                 libSQL 연결 (로컬 파일 ↔ Turso)
-    migrations/001_init.sql
-    store.ts                  쿼리 함수
-  workflow.ts  decide.ts  input.ts  errors.ts  rate-limit.ts  actions.ts
-
-scripts/db-migrate.ts         마이그레이션 실행
+    store.ts                  쿼리 함수 (지금 node:sqlite 그대로)
+  workflow.ts  decide.ts  input.ts  errors.ts  actions.ts
 ```
+
+DB 전환(섹션 2)을 할 때 `server/db/client.ts`, `server/db/migrations/`, `server/rate-limit.ts`, `scripts/db-migrate.ts`가 추가된다.
 
 ### 규칙
 
@@ -66,7 +64,9 @@ scripts/db-migrate.ts         마이그레이션 실행
 - 관리자 화면의 "예시 불러오기", "데모 답변 넣기" 버튼과 관련 props(`demoSource`, `demoAnswer`, `demo`)
 - `.claude/docs/demo-mode.md`(데모 QA 가이드)와 README의 데모 안내
 
-## 섹션 2. DB (승인)
+## 섹션 2. DB (설계 승인, 구현 보류)
+
+2026-11-13 결정: 이번에는 구현하지 않는다. 요청 제한도 지금처럼 서버 메모리에서 센다. 아래 설계는 배포를 준비할 때 그대로 쓴다.
 
 ### 연결 (`server/db/client.ts`)
 
@@ -145,15 +145,14 @@ scripts/db-migrate.ts         마이그레이션 실행
 | 관리자 보호 | 로그인 전까지는 공개 주소에서 누구나 발행할 수 있고 AI 비용이 나간다. 시연 기간에는 Vercel Deployment Protection을 쓰되, 작업자 QR 접속(`/n/*`, 작업자 API)이 막히지 않는 방법을 확정해야 한다. |
 | 환경 변수 | `DATABASE_URL`, `DATABASE_AUTH_TOKEN`, `AI_PROVIDER`, `XAI_API_KEY` 또는 `OPENAI_API_KEY`, 선택: `AI_MODEL_*` |
 
-## 검증 방법 (섹션 1·2)
+## 검증 방법 (섹션 1)
 
 데모를 지우고 API 키가 없으면 "AI로 변경 조건 분석"부터 실패하므로 앱을 화면으로 끝까지 돌릴 수 없다. 대신 다음으로 확인한다.
 
-1. `npm run typecheck`, `npm run check:compiler`, `npm test`(decide), `npm run build`
-2. 커밋하지 않는 임시 스크립트로 공지를 새 DB에 직접 넣고, 작업자 화면(`/n/[id]`)과 대시보드(`/notices/[id]`)가 뜨는지, 작업자 참여(`join`)가 저장되는지 확인
-3. `npm run db:migrate`를 두 번 실행해 두 번째는 건너뛰는지 확인
+1. `npm run verify` (타입체크, React Compiler 검사, `decide.test.ts`, 빌드)
+2. 기존 `data/fieldnote.db`에 저장된 공지로 작업자 화면(`/n/[id]`)과 대시보드(`/notices/[id]`)가 200으로 뜨는지 확인. 공지가 없으면 커밋하지 않는 임시 스크립트로 store 함수를 호출해 하나 넣는다.
 
 ## 다음 단계
 
-1. 섹션 1·2 구현 계획 작성과 실행
-2. 섹션 3(AI), 섹션 4(배포) 재논의
+1. 섹션 1 구현
+2. 섹션 2(DB), 섹션 3(AI), 섹션 4(배포) 재논의
