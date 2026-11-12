@@ -59,7 +59,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const step = !draft ? 0 : !preview ? 1 : 2;
   const screen = Math.min(view, step);
   const marks = draft ? segments(analyzedSource, draft.conditions) : [];
-  const mismatch = preview ? WORKER_LANGS.flatMap(lang => preview.translations[lang].checks.filter(c => !c.preserved)) : [];
+  const mismatch = preview ? WORKER_LANGS.flatMap(lang => preview.translations[lang].checks.filter(c => !c.preserved).map(c => ({ ...c, lang }))) : [];
 
   async function run(name: string, work: () => Promise<void>) {
     setBusy(name);
@@ -259,7 +259,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
               </div>
             </div>
             <div className="min-w-0">
-              <div className="mb-6 grid gap-3 rounded-bubble bg-ink p-5 text-paper">
+              <div className="grid gap-3 rounded-bubble bg-ink p-5 text-paper">
                 <label className="grid gap-2 text-sm font-bold text-ink-3">작업자에게 물을 상황 질문
                   <textarea rows={2} value={draft.question} className="text-[16px] font-bold" onChange={e => editQuestion(e.target.value)} />
                 </label>
@@ -273,44 +273,28 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                   </div>
                 )}
               </div>
-              <h3 className="mb-3 flex flex-wrap items-baseline gap-2.5">번역 의미 검증 <span className="text-[13px] font-medium text-ink-2">번역 → 독립 역번역 → 조건별 비교</span></h3>
-              <div className="overflow-x-auto rounded-bubble bg-white px-3">
-                <table className="w-full border-collapse text-sm">
-                  <thead><tr className="border-b border-grid text-left text-xs text-ink-2">
-                    <th className="px-2 py-2.5">승인한 조건</th><th className="px-2 py-2.5">{LANGUAGES[previewLang].native}</th><th className="px-2 py-2.5">결과</th>
-                  </tr></thead>
-                  <tbody>
-                    {draft.conditions.map(c => {
-                      const check = translation.checks.find(x => x.id === c.id);
-                      const text = translation.conditions.find(x => x.id === c.id)?.text;
-                      return (
-                        <tr key={c.id} className={"border-b border-canvas align-top last:border-0 " + (check?.preserved ? "" : "bg-stop/10")}>
-                          <td className="px-2 py-3"><span className={"mr-2 inline-grid size-5 place-items-center rounded-full text-[11px] font-black " + KIND_BG[c.kind]}>{c.id.slice(1)}</span>{c.label}</td>
-                          <td className="px-2 py-3" lang={previewLang}>{text}</td>
-                          <td className="px-2 py-3">{check?.preserved ? <span className="tag bg-action">의미 보존</span>
-                            : <><span className="tag bg-stop">확인 필요</span><p className="mt-1 text-xs text-ink-2">{check?.note}</p></>}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <details className="mt-3 text-sm">
-                <summary>역번역 전문 보기</summary>
-                <p className="mt-2 rounded-2xl bg-white p-3 whitespace-pre-wrap">{translation.backTranslation}</p>
-              </details>
 
               <div className="mt-6 grid justify-items-start gap-3 rounded-bubble bg-white p-5">
                 {mismatch.length > 0 && (
-                  <label className="flex items-center gap-2 text-sm font-bold">
-                    <input type="checkbox" checked={acceptMismatch} onChange={e => setAcceptMismatch(e.target.checked)} />
-                    번역 검증 경고 {mismatch.length}건을 확인했고, 이대로 발행합니다.
-                  </label>
+                  <div className="grid gap-2 rounded-2xl bg-stop/15 p-4">
+                    <p className="text-sm font-bold">번역에서 의미가 달라졌을 수 있는 조건이 {mismatch.length}건 있어요.</p>
+                    <ul className="grid gap-1 text-[13px] text-ink-2">
+                      {mismatch.map(m => (
+                        <li key={m.lang + m.id}>
+                          <span className="mr-1.5 font-bold text-ink">{LANGUAGES[m.lang].native} · {m.id.slice(1)}번</span>
+                          {draft.conditions.find(c => c.id === m.id)?.label}{m.note && ` — ${m.note}`}
+                        </li>
+                      ))}
+                    </ul>
+                    <label className="flex items-center gap-2 text-sm font-bold">
+                      <input type="checkbox" checked={acceptMismatch} onChange={e => setAcceptMismatch(e.target.checked)} />
+                      확인했고, 이대로 발행합니다.
+                    </label>
+                  </div>
                 )}
                 <button className="btn-primary !px-6 !py-4 text-base" aria-busy={busy === "publish"} disabled={Boolean(busy) || questionChanged || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
                   {busy === "publish" ? <><Loading size={22} tone="light" />발행하는 중</> : "승인하고 발행 · QR 만들기"}
                 </button>
-                <p className="text-[13px] text-ink-2">발행 시에는 AI를 다시 호출하지 않아요. 지금 검수한 문장이 그대로 작업자에게 전달돼요.</p>
               </div>
             </div>
           </div>
