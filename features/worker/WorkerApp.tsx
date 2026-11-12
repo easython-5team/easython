@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang, type WorkerText } from "../../shared/languages.ts";
-import type { InputMode, SessionView, TurnState } from "../../shared/types.ts";
+import { progress as questionProgress } from "../../shared/questions.ts";
+import type { InputMode, SessionView, WorkerTurn } from "../../shared/types.ts";
 import NoticeView, { ListenButton, SituationCard } from "./NoticeView";
 import { post } from "../../ui/request";
 import { useRecognition, useSpeaker } from "./speech";
 import Loading from "../../ui/Loading";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 
-const TERMINAL: TurnState[] = ["understood", "guidance"];
 const LANG_BG = ["bg-time text-white", "bg-except text-ink", "bg-action text-ink", "bg-place text-ink"];
 const noSubscription = () => () => {};
 
@@ -140,8 +140,14 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   });
 
   const turns = view.turns;
-  const latest = turns.at(-1)?.state;
-  const finished = latest !== undefined && TERMINAL.includes(latest);
+  const questions = view.notice.questions;
+  // Questions open one at a time: finished ones stay visible above the open one.
+  const { current, results } = questionProgress(questions.map(q => q.id), turns);
+  const finished = current === null;
+  const allUnderstood = finished && [...results.values()].every(state => state === "understood");
+  const shown = questions.filter(q => q.id === current || results.has(q.id));
+  const open = questions.find(q => q.id === current);
+  const latest = turns.filter(turn => turn.questionId === current).at(-1)?.state;
   const waiting = view.escalations.some(e => e.answer === null);
 
   // Poll only while a question is waiting for the manager.
@@ -218,58 +224,66 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     <div className="grid gap-4" lang={lang}>
       {progress}
       <button type="button" className="btn-text justify-self-start" onClick={() => go("read")}>← {t.backToNotice}</button>
-      <SituationCard question={view.notice.question} t={t} speaker={speaker} />
-
-      <div className="grid gap-3 py-2" aria-live="polite">
-        {turns.map(turn => {
-          const managerAnswer = answers.get(turn.turn);
+      <div className="grid gap-5" aria-live="polite">
+        {shown.map(q => {
+          const index = questions.indexOf(q);
           return (
-            <div className="grid gap-2" key={turn.turn}>
-              <div className="max-w-[88%] justify-self-end rounded-bubble rounded-br-md bg-ink px-4 py-3 text-paper">
-                <span className="block text-xs font-bold text-ink-3">{t.you}{turn.mode === "voice" && <> · {t.viaVoice}</>}</span>
-                <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.answer}</p>
-              </div>
-              <div className={"max-w-[94%] rounded-bubble rounded-bl-md p-4 text-ink shadow-soft " + TURN_BG[turn.state]}>
-                <div className="mb-2.5 flex items-center justify-between gap-3">
-                  <strong className="text-[15px] font-black tracking-[-0.03em]">{t.states[turn.state]}</strong>
-                  <ListenButton id={"turn-" + turn.turn} text={turn.message} speaker={speaker} t={t} />
+            <div key={q.id} className="grid gap-3">
+            <SituationCard id={q.id} question={q.text} type={q.type} index={index + 1} total={questions.length} t={t} speaker={speaker} />
+            {turns.filter(turn => turn.questionId === q.id).map((turn: WorkerTurn) => {
+              const managerAnswer = answers.get(turn.turn);
+              return (
+                <div className="grid gap-2" key={turn.turn}>
+                  <div className="max-w-[88%] justify-self-end rounded-bubble rounded-br-md bg-ink px-4 py-3 text-paper">
+                    <span className="block text-xs font-bold text-ink-3">{t.you}{turn.mode === "voice" && <> · {t.viaVoice}</>}</span>
+                    <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.answer}</p>
+                  </div>
+                  <div className={"max-w-[94%] rounded-bubble rounded-bl-md p-4 text-ink shadow-soft " + TURN_BG[turn.state]}>
+                    <div className="mb-2.5 flex items-center justify-between gap-3">
+                      <strong className="text-[15px] font-black tracking-[-0.03em]">{t.states[turn.state]}</strong>
+                      <ListenButton id={"turn-" + turn.turn} text={turn.message} speaker={speaker} t={t} />
+                    </div>
+                    {turn.conditions.length > 0 && (
+                      <ul className="mb-2.5 grid gap-1.5">
+                        {turn.conditions.map(c => (
+                          <li key={c.id} className="grid grid-cols-[24px_1fr] items-start gap-2 rounded-2xl bg-white/60 px-2.5 py-2 text-sm">
+                            <span aria-hidden="true" className={"grid size-6 place-items-center rounded-full text-[13px] font-black " + CHECK_BG[c.status]}>{CHECK_ICON[c.status]}</span>
+                            <span>{c.text}</span>
+                            <span className="sr-only">{t.condition[c.status]}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="text-[16px] whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.message}</p>
+                    {turn.state === "manager" && (
+                      managerAnswer
+                        ? <div className="mt-3 rounded-2xl bg-white/70 px-3.5 py-3"><strong className="eyebrow text-ink">{t.managerAnswered}</strong><p>{managerAnswer}</p></div>
+                        : <p className="mt-3 flex items-center gap-2 text-sm font-bold"><Loading size={24} />{t.waitingManager}</p>
+                    )}
+                  </div>
                 </div>
-                {turn.conditions.length > 0 && (
-                  <ul className="mb-2.5 grid gap-1.5">
-                    {turn.conditions.map(c => (
-                      <li key={c.id} className="grid grid-cols-[24px_1fr] items-start gap-2 rounded-2xl bg-white/60 px-2.5 py-2 text-sm">
-                        <span aria-hidden="true" className={"grid size-6 place-items-center rounded-full text-[13px] font-black " + CHECK_BG[c.status]}>{CHECK_ICON[c.status]}</span>
-                        <span>{c.text}</span>
-                        <span className="sr-only">{t.condition[c.status]}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="text-[16px] whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.message}</p>
-                {turn.state === "manager" && (
-                  managerAnswer
-                    ? <div className="mt-3 rounded-2xl bg-white/70 px-3.5 py-3"><strong className="eyebrow text-ink">{t.managerAnswered}</strong><p>{managerAnswer}</p></div>
-                    : <p className="mt-3 flex items-center gap-2 text-sm font-bold"><Loading size={24} />{t.waitingManager}</p>
-                )}
-              </div>
+              );
+            })}
             </div>
           );
         })}
       </div>
 
       {finished ? (
-        <div className={"grid justify-items-center gap-3 rounded-card px-6 py-8 text-center " + (latest === "understood" ? "bg-action" : "bg-stop")}>
+        <div className={"grid justify-items-center gap-3 rounded-card px-6 py-8 text-center " + (allUnderstood ? "bg-action" : "bg-stop")}>
           <span aria-hidden="true" className="grid size-14 place-items-center rounded-full bg-ink text-2xl font-black text-paper">
-            {latest === "understood" ? "✓" : "!"}
+            {allUnderstood ? "✓" : "!"}
           </span>
           <p className="text-xl leading-snug font-black tracking-[-0.03em] text-balance">
-            {latest === "understood" ? t.doneUnderstood : t.doneGuidance}
+            {allUnderstood ? t.doneUnderstood : t.doneGuidance}
           </p>
         </div>
       ) : (
         <form className="sticky bottom-3 grid gap-2.5 rounded-card bg-white p-4 shadow-float" onSubmit={submit}>
-          <label htmlFor="answer" className="text-[17px] font-black tracking-[-0.03em]">{latest === "followup" ? t.states.followup : t.yourAnswer}</label>
-          <p className="text-[13px] text-ink-2">{t.answerHint}</p>
+          <label htmlFor="answer" className="text-[17px] font-black tracking-[-0.03em]">
+            {latest === "followup" ? t.states.followup : results.size > 0 && !latest ? t.nextQuestion : t.yourAnswer}
+          </label>
+          <p className="text-[13px] text-ink-2">{open?.type === "short" ? t.shortHint : t.answerHint}</p>
           <textarea id="answer" rows={3} value={recognition.listening ? recognition.interim || answer : answer}
             placeholder={t.placeholder} disabled={busy || recognition.listening} className="!bg-paper text-[17px]"
             onChange={e => { setAnswer(e.target.value); if (!e.target.value) setMode("text"); }} />

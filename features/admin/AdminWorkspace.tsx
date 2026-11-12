@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang } from "../../shared/languages.ts";
-import type { Condition, ConditionKind, Draft, PreviewResult, RecentNotice } from "../../shared/types.ts";
+import { MAX_QUESTIONS, QUESTION_TYPES } from "../../shared/questions.ts";
+import type { Condition, ConditionKind, Draft, PreviewResult, Question, QuestionType, RecentNotice } from "../../shared/types.ts";
 import NoticeView from "../worker/NoticeView";
 import { post } from "../../ui/request";
 import { useSpeaker } from "../worker/speech";
@@ -11,11 +12,35 @@ import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import Select, { type SelectOption } from "../../ui/Select";
 import { KIND_BG } from "../../ui/tone.ts";
+import { datedTitle, splitTitle } from "../../shared/title.ts";
 
 const networkError = "요청을 완료하지 못했어요. 연결을 확인한 뒤 다시 시도하세요.";
 const STEPS = ["작업 변경 사항 작성", "AI 노트 검수", "작업자 화면 검수", "발행 · QR 공유"];
 const KIND_OPTIONS: SelectOption<ConditionKind>[] = (Object.entries(CONDITION_KINDS) as Array<[ConditionKind, string]>)
   .map(([value, label]) => ({ value, label, swatch: KIND_BG[value].split(" ")[0] }));
+const TYPE_ORDER: QuestionType[] = ["open", "short"];
+const COUNTS = Array.from({ length: MAX_QUESTIONS }, (_, i) => i + 1);
+
+function questionReady(q: Question): boolean {
+  return Boolean(q.text.trim() && q.conditionIds.length && (q.type !== "short" || q.answer.trim()));
+}
+
+// A pill group for picking one of a few values.
+function Segmented<T extends string | number>({ label, value, options, onChange, dark }: {
+  label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (value: T) => void; dark?: boolean;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className={"inline-flex gap-1 rounded-full p-1 " + (dark ? "bg-white/10" : "bg-paper")}>
+      {options.map(o => (
+        <button key={String(o.value)} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
+          className={"min-w-9 cursor-pointer rounded-full px-3 py-1 text-[13px] font-bold transition "
+            + (value === o.value ? (dark ? "bg-paper text-ink" : "bg-ink text-paper") : (dark ? "text-ink-3 hover:text-paper" : "text-ink-2 hover:text-ink"))}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // Splits the source into plain and evidence-highlighted segments.
 interface Segment { text: string; id?: string }
@@ -49,8 +74,11 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewLang, setPreviewLang] = useState<Lang>("en");
   const [acceptMismatch, setAcceptMismatch] = useState(false);
-  // The Korean question the current preview was translated from.
-  const [previewedQuestion, setPreviewedQuestion] = useState("");
+  // The Korean questions the current preview was translated from.
+  const [previewedQuestions, setPreviewedQuestions] = useState("");
+  // How the next "질문 생성하기" writes questions. A null count follows the number of checked conditions.
+  const [questionKind, setQuestionKind] = useState<QuestionType>("open");
+  const [chosenCount, setChosenCount] = useState<number | null>(null);
   const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -86,9 +114,19 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     setDraft(current => (current ? { ...current, ...changes } : current));
     resetFrom(2);
   }
-  // Editing the question in step 3 keeps the preview on screen but marks it out of date.
-  function editQuestion(question: string) {
-    setDraft(current => (current ? { ...current, question } : current));
+  // Editing questions in step 3 keeps the preview on screen but marks it out of date.
+  function setQuestions(change: (questions: Question[]) => Question[]) {
+    setDraft(current => (current ? { ...current, questions: change(current.questions) } : current));
+  }
+  function editQuestion(id: string, changes: Partial<Question>) {
+    setQuestions(qs => qs.map(q => (q.id === id ? { ...q, ...changes } : q)));
+  }
+  function addQuestion() {
+    setQuestions(qs => {
+      const next = Math.max(0, ...qs.map(q => Number(q.id.slice(1)))) + 1;
+      const checked = draft?.conditions.filter(c => c.check).map(c => c.id) ?? [];
+      return [...qs, { id: "q" + next, type: questionKind, text: "", answer: "", conditionIds: checked, reason: "" }];
+    });
   }
   function updateCondition(id: string, changes: Partial<Condition>) {
     if (!draft) return;
@@ -107,12 +145,22 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     setAnalyzedSource(source);
     go(1);
   });
-  const makePreview = () => run("preview", async () => {
-    const result = await post("preview", { source: analyzedSource, draft }, networkError);
+  async function previewDraft(next: Draft) {
+    const result = await post("preview", { source: analyzedSource, draft: next }, networkError);
     setPreview(result);
-    setPreviewedQuestion(draft?.question ?? "");
+    setPreviewedQuestions(JSON.stringify(next.questions));
     setAcceptMismatch(false);
     go(2);
+  }
+  // From the AI note: write questions from the checked conditions, then preview them.
+  const makeQuestion = () => run("preview", async () => {
+    const { draft: next } = await post("question", { source: analyzedSource, draft, type: questionKind, count: questionCount }, networkError);
+    setDraft(next);
+    await previewDraft(next);
+  });
+  // From the worker preview: keep the manager's edited questions and translate them again.
+  const makePreview = () => run("preview", async () => {
+    if (draft) await previewDraft(draft);
   });
   const publish = () => run("publish", async () => {
     if (!preview) return;
@@ -120,10 +168,15 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     router.push("/notices/" + encodeURIComponent(id));
   });
 
-  const canPreview = draft && draft.title.trim() && draft.question.trim() &&
-    draft.conditions.length && draft.conditions.every(c => c.label.trim()) && draft.conditions.some(c => c.check);
+  const title = draft ? splitTitle(draft.title) : { date: "", summary: "" };
+  const checked = draft?.conditions.filter(c => c.check) ?? [];
+  const questionCount = chosenCount ?? Math.min(MAX_QUESTIONS, Math.max(1, checked.length));
+  const canPreview = draft && title.summary &&
+    draft.conditions.length && draft.conditions.every(c => c.label.trim()) && checked.length > 0;
+  const questionsReady = Boolean(draft?.questions.length && draft.questions.every(questionReady));
   const translation = preview?.translations[previewLang];
-  const questionChanged = Boolean(preview && draft && draft.question.trim() !== previewedQuestion.trim());
+  const questionChanged = Boolean(preview && draft && JSON.stringify(draft.questions) !== previewedQuestions);
+  const questionTypes = new Map(draft?.questions.map(q => [q.id, q.type]));
   const kinds = new Map<string, ConditionKind>(draft?.conditions.map(c => [c.id, c.kind]));
 
   return (
@@ -189,10 +242,14 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
           <section className="card">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2>AI 노트</h2>
-              <span className="text-[13px] text-ink-2">체크한 조건을 작업자 답변에서 확인해요</span>
+              <span className="text-[13px] text-ink-2">체크한 조건을 묻는 질문을 만들고, 작업자 답변에서 확인해요</span>
             </div>
             <label className="grid gap-1.5 text-sm font-bold">공지 제목
-              <input value={draft.title} onChange={e => updateDraft({ title: e.target.value })} />
+              <span className="flex items-center gap-2">
+                <span className="shrink-0 rounded-md bg-white px-2.5 py-2 font-mono text-[15px]" title="작성일(YYMMDD)">[{title.date}]</span>
+                <input className="min-w-0 flex-1" value={title.summary} placeholder="작업 내용 요약"
+                  onChange={e => updateDraft({ title: datedTitle(e.target.value, title.date) })} />
+              </span>
             </label>
             <ul className="mt-4 mb-2.5 grid gap-2.5">
               {draft.conditions.map(c => (
@@ -217,14 +274,30 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
             </ul>
             <button type="button" className="btn-text" onClick={addCondition}>+ 조건 직접 추가</button>
 
-            <div className="mt-5 flex justify-center">
-              {preview ? (
-                <button type="button" className="btn-primary" disabled={Boolean(busy)} onClick={() => go(2)}>작업자 화면 검수로 →</button>
-              ) : (
-                <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makePreview}>
-                  {busy === "preview" ? <><Loading size={22} tone="light" />질문을 만드는 중</> : "질문 생성하기"}
-                </button>
+            <div className="mt-5 grid gap-3 rounded-bubble bg-white p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-bold">질문 유형</span>
+                <Segmented label="질문 유형" value={questionKind} onChange={setQuestionKind}
+                  options={TYPE_ORDER.map(value => ({ value, label: QUESTION_TYPES[value] }))} />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-bold">질문 개수</span>
+                <Segmented label="질문 개수" value={questionCount} onChange={setChosenCount}
+                  options={COUNTS.map(value => ({ value, label: String(value) }))} />
+              </div>
+              <p className="text-[13px] text-ink-2">
+                {questionKind === "short" ? "단답형은 정답이 있는 짧은 질문이에요. 정답은 다음 화면에서 고칠 수 있어요."
+                  : "주관식은 무엇을 할지 직접 설명하게 하는 질문이에요."} 체크한 조건 {checked.length}개를 질문 {questionCount}개에 나눠 물어요.
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {preview && (
+                <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(2)}>작업자 화면 검수로 →</button>
               )}
+              <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makeQuestion}>
+                {busy === "preview" ? <><Loading size={22} tone="light" />질문을 만드는 중</> : preview ? "질문 다시 생성하기" : "질문 생성하기"}
+              </button>
             </div>
           </section>
       </div>
@@ -255,19 +328,70 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
               <div className="max-h-[680px] overflow-y-auto rounded-[38px] bg-canvas px-3 pt-10 pb-4">
                 <div aria-hidden="true" className="mx-auto -mt-7 mb-4 h-6 w-24 rounded-full bg-ink" />
                 <NoticeView t={WORKER_TEXT[previewLang]} speaker={speaker}
-                  notice={{ ...translation, lang: previewLang, addenda: [], conditions: translation.conditions.map(c => ({ ...c, kind: kinds.get(c.id) })) }} />
+                  notice={{
+                    ...translation, lang: previewLang, addenda: [],
+                    conditions: translation.conditions.map(c => ({ ...c, kind: kinds.get(c.id) })),
+                    questions: translation.questions.map(q => ({ ...q, type: questionTypes.get(q.id) ?? "open" })),
+                  }} />
               </div>
             </div>
             <div className="min-w-0">
               <div className="grid gap-3 rounded-bubble bg-ink p-5 text-paper">
-                <label className="grid gap-2 text-sm font-bold text-ink-3">작업자에게 물을 상황 질문
-                  <textarea rows={2} value={draft.question} className="text-[16px] font-bold" onChange={e => editQuestion(e.target.value)} />
-                </label>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-bold text-ink-3">작업자에게 차례로 물을 질문</h3>
+                  <span className="text-[13px] text-ink-3">{draft.questions.length}/{MAX_QUESTIONS}</span>
+                </div>
+                <ol className="grid gap-3">
+                  {draft.questions.map((q, i) => (
+                    <li key={q.id} className="grid gap-2.5 rounded-2xl bg-white/5 p-3.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="grid size-6 place-items-center rounded-full bg-paper text-xs font-black text-ink">{i + 1}</span>
+                        <Segmented dark label={`질문 ${i + 1} 유형`} value={q.type} onChange={type => editQuestion(q.id, { type })}
+                          options={TYPE_ORDER.map(value => ({ value, label: QUESTION_TYPES[value] }))} />
+                        <button type="button" className="btn-text ml-auto text-[13px] !text-stop" aria-label={`질문 ${i + 1} 삭제`}
+                          disabled={draft.questions.length === 1}
+                          onClick={() => setQuestions(qs => qs.filter(x => x.id !== q.id))}>삭제</button>
+                      </div>
+                      <textarea rows={2} value={q.text} aria-label={`질문 ${i + 1}`} placeholder="작업자에게 물을 질문"
+                        className="text-[16px] font-bold" onChange={e => editQuestion(q.id, { text: e.target.value })} />
+                      {q.type === "short" && (
+                        <label className="grid gap-1.5 text-[13px] font-bold text-ink-3">정답
+                          <input value={q.answer} placeholder="예: 2층 실내 정리" onChange={e => editQuestion(q.id, { answer: e.target.value })} />
+                        </label>
+                      )}
+                      <div className="grid gap-1.5">
+                        <span className="text-[13px] font-bold text-ink-3">이 질문으로 확인할 조건</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {checked.map(c => {
+                            const on = q.conditionIds.includes(c.id);
+                            return (
+                              <button key={c.id} type="button" aria-pressed={on} title={c.label}
+                                onClick={() => editQuestion(q.id, { conditionIds: on ? q.conditionIds.filter(x => x !== c.id) : checked.map(x => x.id).filter(x => x === c.id || q.conditionIds.includes(x)) })}
+                                className={"max-w-full cursor-pointer truncate rounded-full px-2.5 py-1 text-xs font-bold transition "
+                                  + (on ? KIND_BG[c.kind] : "bg-white/10 text-ink-3 hover:text-paper")}>
+                                {c.id.slice(1)}. {c.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {!questionReady(q) && (
+                        <p className="text-[13px] text-except">
+                          {!q.text.trim() ? "질문을 입력해 주세요." : !q.conditionIds.length ? "확인할 조건을 하나 이상 골라 주세요." : "정답을 입력해 주세요."}
+                        </p>
+                      )}
+                      {q.reason && <p className="text-[13px] text-ink-3">{q.reason}</p>}
+                    </li>
+                  ))}
+                </ol>
+                {draft.questions.length < MAX_QUESTIONS && (
+                  <button type="button" className="btn-text justify-self-start !text-paper" onClick={addQuestion}>+ 질문 직접 추가</button>
+                )}
                 {questionChanged && (
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-[13px] text-except">질문을 바꿨어요. 미리보기에 반영해야 발행할 수 있어요.</p>
                     <button className="btn-secondary !py-2 text-sm" aria-busy={busy === "preview"}
-                      disabled={Boolean(busy) || !draft.question.trim()} onClick={makePreview}>
+                      disabled={Boolean(busy) || !questionsReady} onClick={makePreview}>
                       {busy === "preview" ? <><Loading size={20} />반영하는 중</> : "미리보기에 반영"}
                     </button>
                   </div>

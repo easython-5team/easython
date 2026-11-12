@@ -3,7 +3,8 @@
 import QRCode from "qrcode";
 import { Fragment, useEffect, useId, useState } from "react";
 import { CONDITION_KINDS, isLang, LANGUAGES } from "../../shared/languages.ts";
-import type { CheckStatus, Condition, DashboardView, DashboardWorker, TurnState, WorkerStatus } from "../../shared/types.ts";
+import { QUESTION_TYPES } from "../../shared/questions.ts";
+import type { CheckStatus, Condition, DashboardView, DashboardWorker, Question, TurnState, WorkerStatus } from "../../shared/types.ts";
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import { post } from "../../ui/request";
@@ -24,19 +25,10 @@ function languageName(lang: string): string {
   return isLang(lang) ? LANGUAGES[lang].native : lang;
 }
 
-function isLocal(url: string): boolean {
-  try {
-    return ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"].includes(new URL(url).hostname);
-  } catch {
-    return true;
-  }
-}
-
 function QrPanel({ id, baseUrl }: { id: string; baseUrl: string }) {
   const [url, setUrl] = useState("");
   const [svg, setSvg] = useState("");
-  const [copied, setCopied] = useState("");
-  const [poster, setPoster] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const link = new URL("/n/" + encodeURIComponent(id), baseUrl || window.location.origin).href;
@@ -48,9 +40,9 @@ function QrPanel({ id, baseUrl }: { id: string; baseUrl: string }) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
-      setCopied("링크를 복사했어요. 단체톡방에 붙여넣으세요.");
+      setCopied(true);
     } catch {
-      setCopied("자동 복사가 되지 않았어요. 링크를 직접 복사해 주세요.");
+      setCopied(false);
     }
   }
 
@@ -58,42 +50,21 @@ function QrPanel({ id, baseUrl }: { id: string; baseUrl: string }) {
     <section className="card grid items-center gap-6 sm:grid-cols-[210px_minmax(0,1fr)]">
       <div className="mx-auto aspect-square w-[210px] max-w-full rounded-bubble bg-white p-3 [&_svg]:block [&_svg]:size-full"
         aria-label="작업자 접속 QR 코드" dangerouslySetInnerHTML={{ __html: svg }} />
-      <div className="grid min-w-0 gap-2.5">
+      <div className="grid min-w-0 justify-items-center gap-2.5 text-center">
         <h2>현장 QR · 공유 링크</h2>
-        <p className="text-ink-2">작업자가 휴대폰 카메라로 스캔하면 언어 선택 화면이 열려요. 로그인은 필요 없어요.</p>
-        <input readOnly value={url} aria-label="작업자 링크" onFocus={e => e.target.select()} />
-        <div className="flex flex-wrap gap-2">
-          <button className="btn-primary" onClick={copy}>링크 복사</button>
-          <button className="btn-secondary" onClick={() => setPoster(true)}>현장 게시용 크게 보기</button>
-          <a className="btn-secondary" href={url} target="_blank" rel="noreferrer">작업자 화면 열기</a>
-        </div>
-        <span role="status" className="text-[13px] text-ink-2">{copied}</span>
-        {url && isLocal(url) && (
-          <p className="rounded-2xl bg-except/25 px-4 py-3 text-[13px] [overflow-wrap:anywhere]">
-            지금 주소({new URL(url).host})는 이 컴퓨터에서만 열려요. 휴대폰으로 스캔하려면 HTTPS 터널 주소를
-            <code>PUBLIC_BASE_URL</code>에 넣고 서버를 다시 시작하세요. 음성 인식도 HTTPS에서만 동작해요.
-          </p>
-        )}
+        <button className="btn-primary" onClick={copy} aria-live="polite">{copied ? "복사했어요" : "링크 복사"}</button>
       </div>
-      {poster && (
-        <div className="poster fixed inset-0 z-[60] grid place-items-center bg-ink/80 p-5" role="dialog" aria-modal="true" aria-label="현장 게시용 QR" onClick={() => setPoster(false)}>
-          <div className="grid max-w-[560px] justify-items-center gap-4 rounded-card bg-paper p-8 text-center" onClick={e => e.stopPropagation()}>
-            <p className="text-lg font-bold">Scan to read today's work change · Quét để đọc thay đổi công việc hôm nay</p>
-            <div className="aspect-square w-[min(400px,70vw)] [&_svg]:block [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: svg }} />
-            <p className="text-xl font-black tracking-[-0.03em]">작업 변경 공지 · 스캔하고 모국어로 확인하세요</p>
-            <div className="no-print flex gap-2"><button className="btn-primary" onClick={() => window.print()}>인쇄</button><button className="btn-secondary" onClick={() => setPoster(false)}>닫기</button></div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
 
-function WorkerRow({ worker, conditions, open, toggle }: {
-  worker: DashboardWorker; conditions: Condition[]; open: boolean; toggle: () => void;
+function WorkerRow({ worker, conditions, questions, open, toggle }: {
+  worker: DashboardWorker; conditions: Condition[]; questions: Question[]; open: boolean; toggle: () => void;
 }) {
   const last = worker.turns.at(-1);
-  const assessment = [...worker.turns].reverse().find(t => t.assessment.length)?.assessment ?? [];
+  // Each condition's latest judgment, from whichever question tested it.
+  const latest = (id: string) => [...worker.turns].reverse().flatMap(t => t.assessment).find(a => a.id === id);
+  const number = (questionId: string) => questions.findIndex(q => q.id === questionId) + 1;
   const status = STATUS[worker.status];
   return (
     <>
@@ -107,7 +78,7 @@ function WorkerRow({ worker, conditions, open, toggle }: {
         <td className="px-2 py-3 text-center">
           <div className="flex flex-wrap justify-center gap-1">
             {conditions.filter(c => c.check).map(c => {
-              const item = assessment.find(a => a.id === c.id);
+              const item = latest(c.id);
               const s: CheckStatus = item?.status ?? "missing";
               return <span key={c.id} className={"tag " + CHECK_BG[s]} title={c.label + " · " + CHECK[s]}>{CHECK_ICON[s]} {c.id.slice(1)}</span>;
             })}
@@ -121,7 +92,7 @@ function WorkerRow({ worker, conditions, open, toggle }: {
             <ol className="grid gap-3">
               {worker.turns.map(turn => (
                 <li key={turn.turn} className="grid gap-1 border-l-[3px] border-ink pl-3">
-                  <div className="flex items-baseline gap-2.5"><span className="text-[13px] font-black">{TURN_STATE[turn.state]}</span><span className="text-[13px] text-ink-2">v{turn.version} · {turn.mode === "voice" ? "음성" : "텍스트"}</span></div>
+                  <div className="flex items-baseline gap-2.5">{questions.length > 1 && <span className="tag bg-ink text-paper">Q{number(turn.questionId)}</span>}<span className="text-[13px] font-black">{TURN_STATE[turn.state]}</span><span className="text-[13px] text-ink-2">v{turn.version} · {turn.mode === "voice" ? "음성" : "텍스트"}</span></div>
                   <p lang={worker.lang}>{turn.answer}</p>
                   <p className="text-ink-2">→ {turn.inputKo}</p>
                   {turn.state !== "answered" && turn.state !== "manager" && (
@@ -179,8 +150,7 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
     { label: "이해 완료", value: stats.understood, dot: "bg-action" },
     { label: "재확인 필요", value: stats.recheck, dot: "bg-stop" },
   ];
-  // What a correct answer has to say: the conditions the manager chose to check.
-  const example = notice.draft.conditions.filter(c => c.check);
+  const conditionById = new Map(notice.draft.conditions.map(c => [c.id, c]));
 
   return (
     <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6">
@@ -196,9 +166,9 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
 
       <section className="grid grid-cols-3 gap-3" aria-label="이해 확인 현황">
         {tiles.map(tile => (
-          <div key={tile.label} className="grid gap-1 rounded-bubble bg-paper px-5 py-4 shadow-soft">
-            <span className="flex items-center gap-1.5 text-[13px] font-bold text-ink-2"><i aria-hidden="true" className={"size-2.5 rounded-full " + tile.dot} />{tile.label}</span>
-            <span className="text-[34px] leading-none font-black tracking-[-0.05em] tabular-nums">{tile.value}</span>
+          <div key={tile.label} className="grid justify-items-center gap-1 rounded-bubble bg-paper px-5 py-4 shadow-soft">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-ink-2"><i aria-hidden="true" className={"size-2.5 rounded-full " + tile.dot} />{tile.label}</span>
+            <span className="text-[28px] leading-none font-black tracking-[-0.05em] tabular-nums">{tile.value}</span>
           </div>
         ))}
       </section>
@@ -214,7 +184,7 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
                 <tbody>
                   {workers.map(w => (
                     <Fragment key={w.id}>
-                      <WorkerRow worker={w} conditions={notice.draft.conditions} open={open === w.id} toggle={() => setOpen(open === w.id ? "" : w.id)} />
+                      <WorkerRow worker={w} conditions={notice.draft.conditions} questions={notice.draft.questions} open={open === w.id} toggle={() => setOpen(open === w.id ? "" : w.id)} />
                     </Fragment>
                   ))}
                 </tbody>
@@ -226,41 +196,42 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
       <section className="card grid gap-6">
         <div>
         <h2>공지 내용</h2>
-        <ul className="mt-4 mb-3 grid gap-2">
-          {notice.draft.conditions.map(c => (
-            <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-white px-3 py-2.5">
-              <span className={"tag " + KIND_BG[c.kind]}>{CONDITION_KINDS[c.kind]}</span>{c.label}
-              {c.check && <span className="tag ml-auto bg-canvas">답변 확인</span>}
-            </li>
-          ))}
-        </ul>
+        <p className="mt-4 rounded-2xl bg-white px-4 py-3 whitespace-pre-wrap">{notice.source}</p>
         </div>
         <div className="grid gap-3">
-          <h2>질문 내용</h2>
-          <div className="rounded-2xl bg-white">
-            <div className="flex items-start justify-between gap-3 px-4 py-3">
-              <p className="font-semibold">{notice.draft.question}</p>
-              <button type="button" aria-expanded={showExample} aria-controls={exampleId}
-                aria-label={showExample ? "예시 답안 닫기" : "예시 답안 보기"} onClick={() => setShowExample(!showExample)}
-                className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-ink-2 hover:bg-canvas hover:text-ink">
-                <svg aria-hidden="true" viewBox="0 0 12 12" className={"size-3.5 transition-transform " + (showExample ? "rotate-180" : "")}>
-                  <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </div>
-            {showExample && (
-              <div id={exampleId} className="grid gap-2 border-t border-canvas px-4 py-3">
-                <p className="eyebrow">예시 답안 · 작업자 답에 들어가야 할 내용</p>
-                <ul className="grid gap-1.5">
-                  {example.map(c => (
-                    <li key={c.id} className="flex items-start gap-2 text-[15px]">
-                      <span className={"tag mt-0.5 " + KIND_BG[c.kind]}>{CONDITION_KINDS[c.kind]}</span>{c.label}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="flex items-center justify-between gap-3">
+            <h2>질문 내용</h2>
+            <button type="button" aria-expanded={showExample} aria-controls={exampleId} className="btn-text text-[13px]"
+              onClick={() => setShowExample(!showExample)}>{showExample ? "예시 답안 닫기" : "예시 답안 보기"}</button>
           </div>
+          <ol id={exampleId} className="grid gap-2">
+            {notice.draft.questions.map((q, i) => (
+              <li key={q.id} className="rounded-2xl bg-white">
+                <div className="flex items-start gap-2.5 px-4 py-3">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink text-xs font-black text-paper">{i + 1}</span>
+                  <p className="font-semibold">{q.text}</p>
+                  <span className="tag ml-auto shrink-0 bg-canvas">{QUESTION_TYPES[q.type]}</span>
+                </div>
+                {showExample && (
+                  <div className="grid gap-2 border-t border-canvas px-4 py-3">
+                    {q.type === "short" ? <>
+                      <p className="eyebrow">정답</p>
+                      <p className="text-[15px] font-semibold">{q.answer}</p>
+                    </> : <>
+                      <p className="eyebrow">예시 답안 · 작업자 답에 들어가야 할 내용</p>
+                      <ul className="grid gap-1.5">
+                        {q.conditionIds.map(id => conditionById.get(id)).filter(c => c !== undefined).map(c => (
+                          <li key={c.id} className="flex items-start gap-2 text-[15px]">
+                            <span className={"tag mt-0.5 " + KIND_BG[c.kind]}>{CONDITION_KINDS[c.kind]}</span>{c.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </>}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
       {error && <FloatingError message={error} onClose={() => setError("")} />}

@@ -1,6 +1,8 @@
 import "server-only";
-import { analyzeNotice, judge, translateAddendum, translateNotice } from "./ai/index.ts";
-import { decide, MAX_TURNS, mergeAssessment, TERMINAL_STATES, verifyAssessment } from "./decide.ts";
+import { analyzeNotice, judge, translateAddendum, translateNotice, writeQuestions } from "./ai/index.ts";
+import type { QuestionRequest } from "./ai/tasks.ts";
+import { decide, MAX_TURNS, mergeAssessment, verifyAssessment } from "./decide.ts";
+import { progress } from "../shared/questions.ts";
 import { fail } from "./errors.ts";
 import { WORKER_LANGS, WORKER_TEXT, type Lang } from "../shared/languages.ts";
 import {
@@ -16,6 +18,12 @@ import type {
 
 export async function analyze(source: string): Promise<Draft> {
   return analyzeNotice(source);
+}
+
+/** Writes the requested number and type of questions from the conditions the manager checked. */
+export async function question(source: string, draft: Draft, request: QuestionRequest): Promise<Draft> {
+  if (!draft.conditions.some(c => c.check)) fail(400, "답변에서 확인할 조건을 하나 이상 선택해 주세요.");
+  return { ...draft, questions: await writeQuestions(source, draft, request) };
 }
 
 export async function preview(source: string, draft: Draft): Promise<PreviewResult> {
@@ -58,7 +66,7 @@ export function join(noticeId: string, name: string, lang: Lang): string {
 function workerTurn(turn: Turn, notice: Notice, lang: Lang): WorkerTurn {
   const texts = new Map(notice.translations[lang].conditions.map(c => [c.id, c.text]));
   return {
-    turn: turn.turn, answer: turn.answer, mode: turn.mode, state: turn.state, message: turn.message,
+    turn: turn.turn, questionId: turn.questionId, answer: turn.answer, mode: turn.mode, state: turn.state, message: turn.message,
     conditions: turn.state === "answered" || turn.state === "manager" ? []
       : turn.assessment.map(c => ({ id: c.id, status: c.status, text: texts.get(c.id) ?? "" })),
   };
@@ -98,9 +106,13 @@ export async function respond({ noticeId, sessionId, turn, answer, mode }: {
     if (existing.answer !== answer) fail(409, "This turn already has a different answer.");
     return workerTurn(existing, notice, lang);
   }
-  const last = turns.at(-1);
-  if (turn !== turns.length || (last && TERMINAL_STATES.has(last.state))) fail(409, "This conversation is already finished.");
-  if (turns.length >= MAX_TURNS) fail(429, "Too many answers for this notice. Please talk to your manager.");
+  // Questions are answered in order; only the open one's turns count here.
+  const questionId = progress(notice.draft.questions.map(q => q.id), turns).current;
+  const question = notice.draft.questions.find(q => q.id === questionId);
+  if (turn !== turns.length || !question) fail(409, "This conversation is already finished.");
+  const asked = turns.filter(t => t.questionId === question.id);
+  if (asked.length >= MAX_TURNS) fail(429, "Too many answers for this question. Please talk to your manager.");
+  const last = asked.at(-1);
 
   const key = sessionId + ":" + turn;
   const active = pending.get(key);
@@ -109,17 +121,17 @@ export async function respond({ noticeId, sessionId, turn, answer, mode }: {
     return active.result;
   }
   const result = (async () => {
-    const verdict = await judge({ notice, lang, history: turns, answer });
-    const checkedIds = notice.draft.conditions.filter(c => c.check).map(c => c.id);
+    const verdict = await judge({ notice, question, lang, history: asked, answer });
+    const checkedIds = question.conditionIds;
     const prior: Assessed[] = last?.assessment ?? checkedIds.map(id => ({ id, status: "missing", quote: "" }));
     const assessment = verdict.intent === "question" ? prior
-      : mergeAssessment(prior, verifyAssessment(verdict.conditions, checkedIds, [...turns.map(t => t.answer), answer]));
+      : mergeAssessment(prior, verifyAssessment(verdict.conditions, checkedIds, [...asked.map(t => t.answer), answer]));
     const texts = new Map(notice.translations[lang].conditions.map(c => [c.id, c.text]));
     const decision = decide({
-      verdict, assessment, history: turns, text: WORKER_TEXT[lang], conditionText: id => texts.get(id) ?? "",
+      verdict, assessment, history: asked, text: WORKER_TEXT[lang], conditionText: id => texts.get(id) ?? "",
     });
     const saved = recordTurn(sessionId, turn, {
-      answer, mode, state: decision.state, message: decision.message, assessment,
+      questionId: question.id, answer, mode, state: decision.state, message: decision.message, assessment,
       inputKo: verdict.inputKo, version: notice.version,
     }, decision.escalate ? { noticeId } : null);
     return workerTurn(saved, notice, lang);
@@ -134,10 +146,12 @@ export async function respond({ noticeId, sessionId, turn, answer, mode }: {
 
 /* ---------- manager: dashboard and escalations ---------- */
 
-export function workerStatus(turns: Turn[], openEscalations: number): { status: WorkerStatus; waiting: boolean } {
-  const last = turns.filter(t => t.state !== "answered" && t.state !== "manager").at(-1)?.state;
-  const status: WorkerStatus = last === "understood" ? "understood" : last === "guidance" ? "recheck"
-    : last === "followup" ? "inProgress" : "notAnswered";
+// A re-explained question needs an in-person check even before the rest are answered.
+export function workerStatus(questionIds: string[], turns: Turn[], openEscalations: number): { status: WorkerStatus; waiting: boolean } {
+  const { current, results } = progress(questionIds, turns);
+  const judged = turns.some(t => t.state !== "answered" && t.state !== "manager");
+  const status: WorkerStatus = [...results.values()].includes("guidance") ? "recheck"
+    : current === null ? "understood" : judged ? "inProgress" : "notAnswered";
   return { status, waiting: openEscalations > 0 };
 }
 
@@ -147,7 +161,7 @@ export function dashboardView(noticeId: string): DashboardView {
   const addenda = new Map(notice.addenda.map(a => [a.id, a]));
   const workers = sessions.map(s => {
     const open = escalations.filter(e => e.sessionId === s.id && !e.resolvedAt).length;
-    return { ...s, ...workerStatus(s.turns, open) };
+    return { ...s, ...workerStatus(notice.draft.questions.map(q => q.id), s.turns, open) };
   });
   const count = (status: WorkerStatus) => workers.filter(w => w.status === status).length;
   return {

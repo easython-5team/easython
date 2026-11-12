@@ -3,8 +3,9 @@ import "server-only";
 // the API key and the manager's review data out of worker responses.
 import { HttpError } from "../errors.ts";
 import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, type Lang } from "../../shared/languages.ts";
+import { datedTitle } from "../../shared/title.ts";
 import type {
-  AddendumTranslations, Condition, ConditionKind, Draft, JudgeContext, QA, RawAssessment, Translation, Verdict,
+  AddendumTranslations, Condition, ConditionKind, Draft, JudgeContext, QA, Question, QuestionType, RawAssessment, Translation, Verdict,
 } from "../../shared/types.ts";
 
 export const MODEL = "gpt-5.4-mini";
@@ -97,13 +98,11 @@ const analysisSchema = objectSchema({
     evidence: string,
     check: boolean,
   })),
-  question: string,
-  questionReason: string,
 });
 
 export function validateAnalysis(raw: unknown, source: string): Draft {
   const value = (raw ?? {}) as Loose<Draft>;
-  if (!hasText(value.title) || !hasText(value.question) || !hasText(value.questionReason) ||
+  if (!hasText(value.title) ||
       !Array.isArray(value.conditions) || !value.conditions.length || value.conditions.length > 8) throw invalidOutput();
   const conditions = (value.conditions as Loose<Condition>[]).map((c, i): Condition => {
     const evidence = sourceQuote(c?.evidence, source);
@@ -114,21 +113,69 @@ export function validateAnalysis(raw: unknown, source: string): Draft {
     for (const c of conditions) if (c.kind === "action" || c.kind === "prohibition") c.check = true;
   }
   if (!conditions.some(c => c.check)) throw invalidOutput();
-  return { title: value.title.trim(), conditions, question: value.question.trim(), questionReason: value.questionReason.trim() };
+  return { title: datedTitle(value.title), conditions, questions: [] };
 }
 
 export async function analyzeNotice(source: string): Promise<Draft> {
   const raw = await requestObject("notice_analysis", analysisSchema,
     `Write every field in Korean. The source is a manager's notice that CHANGES how work is normally done.
-1. title: a short Korean title for the notice.
+1. title: a short Korean summary of what changes, about 10–20 characters, naming when and what work (e.g. "이번 주 목요일 외벽 도장 작업"). No date digits or brackets; the server adds the date.
 2. conditions: split the notice into atomic conditions a worker must follow — kind is one of time (when it applies), place (where), action (what to do), prohibition (what NOT to do, including "do not tidy up"), exception (special cases).
    label: one short Korean sentence stating the condition plainly. evidence: an exact substring of source that supports it, without added quotation marks.
-   check: true only for the 1–3 conditions that the situation question below should make the worker demonstrate in their own answer — prefer the condition that breaks a habit (what is different from usual).
-3. question: one short open-ended situational question in Korean that asks what the worker will actually do, so that a worker who misunderstood the change would reveal it. Do not give away the answer. Avoid trivia about the time alone.
-4. questionReason: one Korean sentence for the manager explaining which misunderstanding this question is designed to catch.
+   check: true only for the 1–3 conditions the worker must prove they understood in their own answer — prefer the condition that breaks a habit (what is different from usual).
 Do not invent conditions that are not in the source. If something is unclear (e.g. when work resumes), do not fill the gap.`,
     { source });
   return validateAnalysis(raw, source);
+}
+
+/* ---------- 1b. Write the questions from the checked conditions ---------- */
+
+const questionsSchema = objectSchema({
+  questions: list(objectSchema({ text: string, conditionIds: list(string), answer: string, reason: string })),
+});
+
+export interface QuestionRequest {
+  type: QuestionType;
+  count: number;
+}
+
+// Each question is linked to checked conditions only; a question the model
+// left unlinked tests every checked condition rather than none.
+export function validateQuestions(raw: unknown, draft: Draft, { type, count }: QuestionRequest): Question[] {
+  const checked = draft.conditions.filter(c => c.check).map(c => c.id);
+  const items = (raw as { questions?: unknown } | null)?.questions;
+  if (!Array.isArray(items) || !items.length) throw invalidOutput();
+  return (items as Loose<Question>[]).slice(0, count).map((q, i): Question => {
+    if (!hasText(q?.text) || !hasText(q.reason) || (type === "short" && !hasText(q.answer))) throw invalidOutput();
+    const ids = Array.isArray(q.conditionIds) ? checked.filter(id => (q.conditionIds as unknown[]).includes(id)) : [];
+    return {
+      id: "q" + (i + 1), type, text: q.text.trim(), reason: q.reason.trim(),
+      conditionIds: ids.length ? ids : checked,
+      answer: type === "short" && hasText(q.answer) ? q.answer.trim() : "",
+    };
+  });
+}
+
+const QUESTION_STYLE: Record<QuestionType, string> = {
+  open: `Each question is an open-ended situational question that makes the worker describe what they will actually do, so a worker who misunderstood would reveal it. answer: "".`,
+  short: `Each question is a short-answer question the worker can answer in a few words (a place, a time, a yes/no about an action, what replaces the usual work). answer: the expected short Korean answer taken from the notice.`,
+};
+
+export async function writeQuestions(source: string, draft: Draft, request: QuestionRequest): Promise<Question[]> {
+  const raw = await requestObject("worker_questions", questionsSchema,
+    `Write every field in Korean. The source is a manager's notice that CHANGES how work is normally done. The manager marked some conditions as checked.
+Write exactly ${request.count} question(s) for the worker, asked one after another.
+${QUESTION_STYLE[request.type]}
+Together the questions must cover every checked condition; spread them so each question tests different checked conditions where possible, and never ask the same thing twice. Do not ask about unchecked conditions.
+conditionIds: the ids of the checked conditions that question tests. Do not give away the answer in the question. Avoid trivia about the time alone.
+reason: one Korean sentence for the manager explaining which misunderstanding the question is designed to catch.
+Do not invent conditions that are not in the source.`,
+    {
+      source,
+      checkedConditions: draft.conditions.filter(c => c.check).map(({ id, kind, label }) => ({ id, kind, label })),
+      otherConditions: draft.conditions.filter(c => !c.check).map(({ kind, label }) => ({ kind, label })),
+    });
+  return validateQuestions(raw, draft, request);
 }
 
 /* ---------- 2. Translate for workers, then verify by back-translation ---------- */
@@ -137,7 +184,7 @@ const translationSchema = objectSchema({
   title: string,
   summary: string,
   conditions: list(objectSchema({ id: string, text: string })),
-  question: string,
+  questions: list(objectSchema({ id: string, text: string })),
 });
 const verificationSchema = objectSchema({
   backTranslation: string,
@@ -149,7 +196,7 @@ function reviewedPayload(source: string, draft: Draft) {
     source,
     title: draft.title,
     conditions: draft.conditions.map(({ id, kind, label }) => ({ id, kind, label })),
-    question: draft.question,
+    questions: draft.questions.map(({ id, text }) => ({ id, text })),
   };
 }
 
@@ -158,17 +205,23 @@ type TranslatedText = Omit<Translation, "backTranslation" | "checks">;
 export function validateTranslation(raw: unknown, draft: Draft): TranslatedText {
   const ids = draft.conditions.map(c => c.id);
   const value = (raw ?? {}) as Loose<TranslatedText>;
-  if (!hasText(value.title) || !hasText(value.summary) || !hasText(value.question) || !Array.isArray(value.conditions)) throw invalidOutput();
+  if (!hasText(value.title) || !hasText(value.summary) || !Array.isArray(value.conditions) || !Array.isArray(value.questions)) throw invalidOutput();
   const byId = new Map<string, string>();
   for (const c of value.conditions as Array<{ id?: unknown; text?: unknown }>) {
     if (typeof c?.id === "string" && ids.includes(c.id) && hasText(c.text)) byId.set(c.id, c.text.trim());
   }
   if (byId.size !== ids.length) throw invalidOutput();
+  const questions = new Map<string, string>();
+  for (const q of value.questions as Array<{ id?: unknown; text?: unknown }>) {
+    if (typeof q?.id === "string" && draft.questions.some(d => d.id === q.id) && hasText(q.text)) questions.set(q.id, q.text.trim());
+  }
+  if (questions.size !== draft.questions.length) throw invalidOutput();
   const translation: TranslatedText = {
-    title: value.title.trim(), summary: value.summary.trim(), question: value.question.trim(),
+    title: value.title.trim(), summary: value.summary.trim(),
     conditions: ids.map(id => ({ id, text: byId.get(id) ?? "" })),
+    questions: draft.questions.map(q => ({ id: q.id, text: questions.get(q.id) ?? "" })),
   };
-  const text = [translation.title, translation.summary, translation.question, ...byId.values()].join(" ");
+  const text = [translation.title, translation.summary, ...byId.values(), ...questions.values()].join(" ");
   if (hasHangul(text)) throw new HttpError(502, "번역문에 한국어가 남아 있어요. 미리보기를 다시 생성해 주세요.");
   return translation;
 }
@@ -199,7 +252,7 @@ export async function translateNotice(source: string, draft: Draft, lang: Lang):
   const raw = await requestObject("worker_translation", translationSchema,
     `Translate for a foreign construction or factory worker whose language is ${language}. Every output field must be in ${language}, written in plain words a worker with basic literacy can understand.
 summary: translate the FULL source notice, keeping every time, place, number, negation and condition. Keep paragraph breaks.
-conditions: translate each reviewed condition label, keeping the same id. title and question: translate the reviewed wording.
+conditions: translate each reviewed condition label, keeping the same id. title and questions: translate the reviewed wording, keeping each question id; keep the leading [YYMMDD] date in title exactly as is.
 Never soften or add instructions.`, reviewedPayload(source, draft));
   const translation = validateTranslation(raw, draft);
   const check = await requestObject("translation_check", verificationSchema,
@@ -225,12 +278,17 @@ const judgmentSchema = objectSchema({
   followup: string,
 });
 
-export async function judge({ notice, lang, history, answer }: JudgeContext): Promise<Verdict> {
+const JUDGE_STYLE: Record<QuestionType, string> = {
+  open: "The question is open-ended: the worker describes what they will do.",
+  short: "The question is short-answer and has an expectedAnswer. A checked condition is met when the worker's answer means the same as expectedAnswer (any language, short words are fine); conflict when it says something incompatible.",
+};
+
+export async function judge({ notice, question, lang, history, answer }: JudgeContext): Promise<Verdict> {
   const language = LANGUAGES[lang].name;
   const translation = notice.translations[lang];
-  const checked = notice.draft.conditions.filter(c => c.check);
+  const checked = notice.draft.conditions.filter(c => question.conditionIds.includes(c.id));
   const raw = await requestObject("worker_judgment", judgmentSchema,
-    `A worker answered a situational question about a changed work instruction. Worker-facing text (reply, followup) must be in ${language}. inputKo must be a faithful Korean translation of the worker's LATEST input for the manager.
+    `A worker answered a question about a changed work instruction. ${JUDGE_STYLE[question.type]} Worker-facing text (reply, followup) must be in ${language}. inputKo must be a faithful Korean translation of the worker's LATEST input for the manager.
 Read the latest input first.
 - intent=question when the worker is asking for information. Set answerable=true only if the notice or a manager answer explicitly resolves it, and put that grounded answer in reply. Otherwise answerable=false and reply="" — a missing restart time, permission or exception is NOT answerable; a stop time does not imply when work may resume. For questions, return every checked condition as missing with an empty quote.
 - intent=action when the worker describes what they will do. Assess every checked condition using the whole conversation (resolve pronouns with the follow-up wording; a later correction replaces an earlier statement):
@@ -242,9 +300,10 @@ Accept equivalent plain-language phrasing and simple grammar mistakes. Never cla
     {
       notice: {
         source: notice.source,
-        conditions: notice.draft.conditions.map(c => ({ id: c.id, kind: c.kind, label: c.label, evidence: c.evidence, check: c.check })),
-        question: notice.draft.question,
-        translatedNotice: { summary: translation.summary, question: translation.question },
+        conditions: notice.draft.conditions.map(c => ({ id: c.id, kind: c.kind, label: c.label, evidence: c.evidence, check: question.conditionIds.includes(c.id) })),
+        question: question.text,
+        expectedAnswer: question.answer,
+        translatedNotice: { summary: translation.summary, question: translation.questions.find(q => q.id === question.id)?.text ?? "" },
         managerAnswers: notice.addenda.map(a => ({ question: a.questionKo, answer: a.answerKo })),
       },
       checkedConditionIds: checked.map(c => c.id),

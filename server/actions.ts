@@ -2,9 +2,9 @@ import "server-only";
 // Every API action, its input validation and its response type. The route
 // handler dispatches here; the client derives response types from this map.
 import { invalid } from "./errors.ts";
-import { field, language, reviewedDraft } from "./input.ts";
+import { field, language, questionCount, questionType, reviewedDraft } from "./input.ts";
 import {
-  analyze, dashboardView, join, noticeFor, preview, publish, resolve, respond, sessionView,
+  analyze, dashboardView, join, noticeFor, preview, publish, question, resolve, respond, sessionView,
 } from "./workflow.ts";
 
 type Body = Record<string, unknown>;
@@ -13,9 +13,14 @@ const id = (value: unknown, label = "ID") => field(value, label, 100);
 export const actions = {
   // manager
   analyze: async (body: Body) => ({ draft: await analyze(field(body.source, "한국어 원문")) }),
+  question: async (body: Body) => {
+    const source = field(body.source, "한국어 원문");
+    const draft = reviewedDraft(body.draft, source, { needQuestions: false });
+    return { draft: await question(source, draft, { type: questionType(body.type), count: questionCount(body.count) }) };
+  },
   preview: async (body: Body) => {
     const source = field(body.source, "한국어 원문");
-    return preview(source, reviewedDraft(body.draft, source));
+    return preview(source, reviewedDraft(body.draft, source, { needQuestions: true }));
   },
   publish: async (body: Body) => ({ id: publish(id(body.previewId, "미리보기 ID"), body.acceptMismatch === true) }),
   dashboard: async (body: Body) => dashboardView(id(body.id)),

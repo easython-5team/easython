@@ -4,7 +4,7 @@ import "server-only";
 import * as mock from "./mock.ts";
 import * as live from "./tasks.ts";
 
-type Engine = Pick<typeof live, "analyzeNotice" | "translateNotice" | "judge" | "translateAddendum">;
+type Engine = Pick<typeof live, "analyzeNotice" | "writeQuestions" | "translateNotice" | "judge" | "translateAddendum">;
 
 let warned = false;
 function engine(): Engine {
@@ -18,6 +18,7 @@ function engine(): Engine {
 }
 
 export const analyzeNotice: typeof live.analyzeNotice = source => engine().analyzeNotice(source);
+export const writeQuestions: typeof live.writeQuestions = (source, draft, request) => engine().writeQuestions(source, draft, request);
 export const translateNotice: typeof live.translateNotice = (source, draft, lang) => engine().translateNotice(source, draft, lang);
 export const judge: typeof live.judge = context => engine().judge(context);
 export const translateAddendum: typeof live.translateAddendum = input => engine().translateAddendum(input);

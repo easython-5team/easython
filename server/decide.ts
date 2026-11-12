@@ -5,7 +5,6 @@ import "server-only";
 import type { WorkerText } from "../shared/languages.ts";
 import type { Assessed, CheckStatus, RawAssessment, Turn, TurnState, Verdict } from "../shared/types.ts";
 
-export const TERMINAL_STATES: ReadonlySet<TurnState> = new Set(["understood", "guidance"]);
 export const MAX_TURNS = 6;
 const STATUSES: ReadonlySet<string> = new Set<CheckStatus>(["met", "missing", "conflict"]);
 

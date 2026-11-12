@@ -14,11 +14,31 @@ export interface Condition {
   check: boolean;
 }
 
+/** short: a few words with an answer key. open: describe what you will do, judged per condition. */
+export type QuestionType = "short" | "open";
+
+export interface Question {
+  id: string;
+  type: QuestionType;
+  text: string;
+  /** Checked conditions this question tests; its answer is judged on these only. */
+  conditionIds: string[];
+  /** Expected answer for a short question; empty for an open one. */
+  answer: string;
+  /** Why the question was asked, for the manager. */
+  reason: string;
+}
+
 export interface Draft {
   title: string;
   conditions: Condition[];
-  question: string;
-  questionReason: string;
+  /** Asked one by one, in order. Empty until the manager generates or adds them. */
+  questions: Question[];
+}
+
+export interface TranslatedQuestion {
+  id: string;
+  text: string;
 }
 
 export interface TranslatedCondition {
@@ -35,7 +55,7 @@ export interface TranslationCheck {
 export interface Translation {
   title: string;
   summary: string;
-  question: string;
+  questions: TranslatedQuestion[];
   conditions: TranslatedCondition[];
   backTranslation: string;
   checks: TranslationCheck[];
@@ -83,6 +103,8 @@ export type TurnState = "understood" | "followup" | "guidance" | "answered" | "m
 export type InputMode = "voice" | "text";
 
 export interface TurnRecord {
+  /** The question this turn answers. */
+  questionId: string;
   answer: string;
   mode: InputMode;
   state: TurnState;
@@ -115,6 +137,7 @@ export interface Verdict {
 
 export interface JudgeContext {
   notice: Notice;
+  question: Question;
   lang: Lang;
   history: Turn[];
   answer: string;
@@ -154,13 +177,14 @@ export interface WorkerNotice {
   version: number;
   title: string;
   summary: string;
-  question: string;
+  questions: Array<TranslatedQuestion & { type: QuestionType }>;
   conditions: WorkerCondition[];
   addenda: Array<QA & { id: string }>;
 }
 
 export interface WorkerTurn {
   turn: number;
+  questionId: string;
   answer: string;
   mode: InputMode;
   state: TurnState;

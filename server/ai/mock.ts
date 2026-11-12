@@ -9,8 +9,10 @@ import "server-only";
 //   shorter than 6 characters        → missing (one follow-up question)
 //   anything else                    → every checked condition met
 import { LANGUAGES, WORKER_LANGS, type Lang } from "../../shared/languages.ts";
+import { datedTitle } from "../../shared/title.ts";
+import type { QuestionRequest } from "./tasks.ts";
 import type {
-  AddendumTranslations, Condition, ConditionKind, Draft, JudgeContext, RawAssessment, Translation, Verdict,
+  AddendumTranslations, Condition, ConditionKind, Draft, JudgeContext, Question, RawAssessment, Translation, Verdict,
 } from "../../shared/types.ts";
 
 const tag = (lang: Lang) => `[${LANGUAGES[lang].native}] `;
@@ -36,26 +38,40 @@ export async function analyzeNotice(source: string): Promise<Draft> {
   const firstProhibition = conditions.find(c => c.kind === "prohibition") ?? conditions[0];
   if (firstProhibition) firstProhibition.check = true;
   return {
-    title: bracket ?? (parts[0] ?? source).slice(0, 30),
+    title: datedTitle(bracket ?? (parts[0] ?? source).slice(0, 20)),
     conditions,
-    question: "이 변경 사항이 적용되면 지금 무엇을 하겠어요?",
-    questionReason: "개발용 가짜 AI가 만든 기본 질문이에요. OPENAI_API_KEY를 설정하면 실제 AI가 만들어요.",
+    questions: [],
   };
+}
+
+// One question per checked condition in turn, repeating when more are asked for.
+export async function writeQuestions(_source: string, draft: Draft, { type, count }: QuestionRequest): Promise<Question[]> {
+  const checked = draft.conditions.filter(c => c.check);
+  return Array.from({ length: count }, (_, i): Question => {
+    const c = checked[i % checked.length];
+    const label = c?.label ?? "";
+    return {
+      id: "q" + (i + 1), type, conditionIds: c ? [c.id] : [],
+      text: type === "short" ? `‘${label}’ — 그래서 무엇을 하나요? 짧게 답해 주세요.` : `‘${label}’ — 이 변경 사항이 적용되면 무엇을 어떻게 하겠어요?`,
+      answer: type === "short" ? label.slice(0, 20) : "",
+      reason: "개발용 가짜 AI가 만든 질문이에요. OPENAI_API_KEY를 설정하면 실제 AI가 만들어요.",
+    };
+  });
 }
 
 export async function translateNotice(source: string, draft: Draft, lang: Lang): Promise<Translation> {
   return {
     title: tag(lang) + draft.title,
     summary: tag(lang) + source.trim(),
-    question: tag(lang) + draft.question,
+    questions: draft.questions.map(q => ({ id: q.id, text: tag(lang) + q.text })),
     conditions: draft.conditions.map(c => ({ id: c.id, text: tag(lang) + c.label })),
     backTranslation: draft.conditions.map(c => c.label).join("\n"),
     checks: draft.conditions.map(c => ({ id: c.id, preserved: true, note: "" })),
   };
 }
 
-export async function judge({ notice, answer }: JudgeContext): Promise<Verdict> {
-  const checked = notice.draft.conditions.filter(c => c.check).map(c => c.id);
+export async function judge({ question, answer }: JudgeContext): Promise<Verdict> {
+  const checked = question.conditionIds;
   const each = (status: string, quote: string): RawAssessment[] => checked.map(id => ({ id, status, quote }));
   const text = answer.trim();
   if (text.includes("?")) {

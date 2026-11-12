@@ -4,6 +4,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { fail } from "../errors.ts";
+import { upgradeDraft, upgradeTranslation } from "../../shared/questions.ts";
 import type { Lang } from "../../shared/languages.ts";
 import type {
   Addendum, AddendumTranslations, Draft, Escalation, Notice, RecentNotice, Session, Translations, Turn, TurnRecord,
@@ -57,6 +58,7 @@ function database(): DatabaseSync {
       CREATE TABLE IF NOT EXISTS turns (
         session_id TEXT NOT NULL REFERENCES sessions(id),
         turn INTEGER NOT NULL,
+        question_id TEXT NOT NULL DEFAULT 'q1',
         answer TEXT NOT NULL,
         mode TEXT NOT NULL,
         state TEXT NOT NULL,
@@ -80,6 +82,9 @@ function database(): DatabaseSync {
         UNIQUE (session_id, turn)
       );
     `);
+    // Databases created before multiple questions lack the column.
+    const columns = db.prepare("PRAGMA table_info(turns)").all() as Array<{ name: string }>;
+    if (!columns.some(c => c.name === "question_id")) db.exec("ALTER TABLE turns ADD COLUMN question_id TEXT NOT NULL DEFAULT 'q1'");
   } catch (error) {
     db.close();
     throw error;
@@ -104,6 +109,11 @@ function run(sql: string, ...params: SQLInputValue[]) {
   return database().prepare(sql).run(...params);
 }
 const parse = <T>(json: string): T => JSON.parse(json) as T;
+const parseDraft = (json: string): Draft => upgradeDraft(parse(json));
+function parseTranslations(json: string): Translations {
+  const stored = parse<Record<Lang, Parameters<typeof upgradeTranslation>[0]>>(json);
+  return Object.fromEntries(Object.entries(stored).map(([lang, t]) => [lang, upgradeTranslation(t)])) as Translations;
+}
 
 function transaction<T>(work: () => T): T {
   const db = database();
@@ -123,7 +133,7 @@ interface NoticeRow extends PreviewRow { id: string; version: number; created_at
 interface AddendumRow { id: string; version: number; question_ko: string; answer_ko: string; translations: string; created_at: string }
 interface SessionRow { id: string; notice_id: string; name: string; lang: Lang; created_at: string }
 interface TurnRow {
-  turn: number; answer: string; mode: Turn["mode"]; state: Turn["state"]; message: string;
+  turn: number; question_id: string; answer: string; mode: Turn["mode"]; state: Turn["state"]; message: string;
   assessment: string; input_ko: string; notice_version: number; created_at: string;
 }
 interface EscalationRow {
@@ -140,7 +150,7 @@ export function savePreview({ source, draft, translations }: { source: string; d
 
 export function getPreview(id: string): { source: string; draft: Draft; translations: Translations } | undefined {
   const row = get<PreviewRow>("SELECT source, draft, translations FROM previews WHERE id = ?", id);
-  return row && { source: row.source, draft: parse<Draft>(row.draft), translations: parse<Translations>(row.translations) };
+  return row && { source: row.source, draft: parseDraft(row.draft), translations: parseTranslations(row.translations) };
 }
 
 // Publishing copies the reviewed preview verbatim: no AI call happens here,
@@ -172,7 +182,7 @@ export function getNotice(id: string): Notice | null {
   const row = get<NoticeRow>("SELECT id, source, draft, translations, version, created_at FROM notices WHERE id = ?", id);
   if (!row) return null;
   return {
-    id: row.id, source: row.source, draft: parse<Draft>(row.draft), translations: parse<Translations>(row.translations),
+    id: row.id, source: row.source, draft: parseDraft(row.draft), translations: parseTranslations(row.translations),
     version: row.version, createdAt: row.created_at, addenda: addenda(id),
   };
 }
@@ -182,8 +192,10 @@ export function getNotice(id: string): Notice | null {
 export function workerNotice(notice: Notice, lang: Lang): WorkerNotice {
   const t = notice.translations[lang];
   const kinds = new Map(notice.draft.conditions.map(c => [c.id, c.kind]));
+  const types = new Map(notice.draft.questions.map(q => [q.id, q.type]));
   return {
-    id: notice.id, lang, version: notice.version, title: t.title, summary: t.summary, question: t.question,
+    id: notice.id, lang, version: notice.version, title: t.title, summary: t.summary,
+    questions: t.questions.map(q => ({ ...q, type: types.get(q.id) ?? "open" })),
     conditions: t.conditions.map(c => ({ id: c.id, kind: kinds.get(c.id), text: c.text })),
     addenda: notice.addenda.map(a => ({ id: a.id, ...a.translations[lang] })),
   };
@@ -202,7 +214,7 @@ export function getSession(id: string): Session | undefined {
 
 function turnRow(row: TurnRow): Turn {
   return {
-    turn: row.turn, answer: row.answer, mode: row.mode, state: row.state, message: row.message,
+    turn: row.turn, questionId: row.question_id, answer: row.answer, mode: row.mode, state: row.state, message: row.message,
     assessment: parse<Turn["assessment"]>(row.assessment), inputKo: row.input_ko, version: row.notice_version, createdAt: row.created_at,
   };
 }
@@ -216,9 +228,9 @@ export function getTurns(sessionId: string): Turn[] {
 export function recordTurn(sessionId: string, turn: number, record: TurnRecord, escalation: { noticeId: string } | null): Turn {
   return transaction(() => {
     const inserted = run(`
-      INSERT INTO turns (session_id, turn, answer, mode, state, message, assessment, input_ko, notice_version)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (session_id, turn) DO NOTHING
-    `, sessionId, turn, record.answer, record.mode, record.state, record.message,
+      INSERT INTO turns (session_id, turn, question_id, answer, mode, state, message, assessment, input_ko, notice_version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (session_id, turn) DO NOTHING
+    `, sessionId, turn, record.questionId, record.answer, record.mode, record.state, record.message,
     JSON.stringify(record.assessment), record.inputKo, record.version);
     if (inserted.changes && escalation) {
       run("INSERT INTO escalations (id, notice_id, session_id, turn, question, question_ko) VALUES (?, ?, ?, ?, ?, ?)",
@@ -269,7 +281,7 @@ export function resolveEscalation({ escalationId, answerKo, questionKo, translat
 export function recentNotices(limit = 6): RecentNotice[] {
   return all<{ id: string; draft: string; version: number; created_at: string }>(
     "SELECT id, draft, version, created_at FROM notices ORDER BY created_at DESC, rowid DESC LIMIT ?", limit,
-  ).map(row => ({ id: row.id, title: parse<Draft>(row.draft).title, version: row.version, createdAt: row.created_at }));
+  ).map(row => ({ id: row.id, title: parseDraft(row.draft).title, version: row.version, createdAt: row.created_at }));
 }
 
 export function dashboard(noticeId: string) {
