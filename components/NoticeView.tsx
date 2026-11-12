@@ -33,7 +33,27 @@ export type NoticeViewData = Pick<WorkerNotice, "lang" | "title" | "summary" | "
 
 // The worker's view of a published notice. The admin preview renders the
 // same component so the manager approves exactly what workers will see.
-export default function NoticeView({ notice, t, speaker }: { notice: NoticeViewData; t: WorkerText; speaker?: Speaker }) {
+interface NoticeViewProps {
+  notice: NoticeViewData;
+  t: WorkerText;
+  speaker?: Speaker;
+  /** The worker app shows the question on its own step; the admin preview keeps it inline. */
+  showQuestion?: boolean;
+}
+
+export function SituationCard({ question, t, speaker }: { question: string; t: WorkerText; speaker: Speaker | undefined }) {
+  return (
+    <section className="grid gap-2 rounded-bubble bg-ink p-5 text-paper shadow-float">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="eyebrow text-ink-3">{t.situation}</h3>
+        <ListenButton id="question" text={question} speaker={speaker} t={t} dark />
+      </div>
+      <p className="text-xl leading-snug font-bold tracking-[-0.03em] text-balance">{question}</p>
+    </section>
+  );
+}
+
+export default function NoticeView({ notice, t, speaker, showQuestion }: NoticeViewProps) {
   const everything = [notice.title, ...notice.conditions.map(c => c.text), notice.question].join(". ");
   return (
     <article lang={notice.lang} className="overflow-hidden rounded-card bg-ink shadow-float">
@@ -80,14 +100,7 @@ export default function NoticeView({ notice, t, speaker }: { notice: NoticeViewD
           <ListenButton id="summary" text={notice.summary} speaker={speaker} t={t} />
         </details>
 
-        {/* situation question: black bubble */}
-        <section className="grid gap-2 rounded-bubble bg-ink p-4 text-paper">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="eyebrow text-ink-3">{t.situation}</h3>
-            <ListenButton id="question" text={notice.question} speaker={speaker} t={t} dark />
-          </div>
-          <p className="text-lg leading-snug font-bold tracking-[-0.03em]">{notice.question}</p>
-        </section>
+        {(showQuestion ?? true) && <SituationCard question={notice.question} t={t} speaker={speaker} />}
       </div>
     </article>
   );

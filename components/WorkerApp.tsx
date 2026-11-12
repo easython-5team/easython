@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang, type WorkerText } from "../lib/languages.ts";
 import type { InputMode, SessionView, TurnState } from "../lib/types.ts";
-import NoticeView, { ListenButton } from "./NoticeView";
+import NoticeView, { ListenButton, SituationCard } from "./NoticeView";
 import { post } from "./request";
 import { useRecognition, useSpeaker } from "./speech";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "./tone.ts";
@@ -128,6 +128,9 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   const [mode, setMode] = useState<InputMode>("text");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // One job per screen: read the notice first, then answer. A returning worker
+  // who already answered goes straight back to the conversation.
+  const [step, setStep] = useState<"read" | "answer">(view.turns.length ? "answer" : "read");
   const running = useRef(false);
   const bottom = useRef<HTMLDivElement>(null);
   const recognition = useRecognition(lang, text => {
@@ -172,14 +175,49 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     running.current = false;
   }
 
+  function go(next: "read" | "answer") {
+    speaker?.stop();
+    recognition.stop();
+    setStep(next);
+    window.scrollTo({ top: 0 });
+  }
+
+  const stage = step === "read" ? 0 : finished ? 2 : 1;
+  const progress = (
+    <ol className="grid grid-cols-3 gap-1.5" aria-label={view.name}>
+      {[t.steps.read, t.steps.answer, t.steps.done].map((label, i) => (
+        <li key={label} aria-current={i === stage ? "step" : undefined}
+          className={"grid gap-1.5 text-xs font-bold " + (i <= stage ? "text-ink" : "text-ink-3")}>
+          <span aria-hidden="true" className={"h-1.5 rounded-full " + (i < stage ? "bg-action" : i === stage ? "bg-ink" : "bg-grid")} />
+          {label}
+        </li>
+      ))}
+    </ol>
+  );
+
+  if (step === "read") {
+    return (
+      <div className="grid gap-4" lang={lang}>
+        {progress}
+        <NoticeView notice={view.notice} t={t} speaker={speaker} showQuestion={false} />
+        <div className="sticky bottom-3 pt-2">
+          <button type="button" className="btn-primary w-full !py-4 text-[17px] shadow-float" onClick={() => go("answer")}>
+            {t.readDone} →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const answers = new Map(view.escalations.map(e => [e.turn, e.answer]));
   const speechError = recognition.error === "" ? "" : recognition.error === "denied" ? t.speechDenied
     : recognition.error === "unsupported" ? t.speechUnsupported : t.speechFailed;
 
   return (
     <div className="grid gap-4" lang={lang}>
-      <p className="text-[15px] font-bold text-ink-2">{view.name}</p>
-      <NoticeView notice={view.notice} t={t} speaker={speaker} />
+      {progress}
+      <button type="button" className="btn-text justify-self-start" onClick={() => go("read")}>← {t.backToNotice}</button>
+      <SituationCard question={view.notice.question} t={t} speaker={speaker} />
 
       <div className="grid gap-3 py-2" aria-live="polite">
         {turns.map(turn => {
@@ -219,9 +257,14 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
       </div>
 
       {finished ? (
-        <p className={"rounded-card p-5 text-center text-lg font-black tracking-[-0.03em] " + (latest === "understood" ? "bg-action" : "bg-stop")}>
-          {latest === "understood" ? t.doneUnderstood : t.doneGuidance}
-        </p>
+        <div className={"grid justify-items-center gap-3 rounded-card px-6 py-8 text-center " + (latest === "understood" ? "bg-action" : "bg-stop")}>
+          <span aria-hidden="true" className="grid size-14 place-items-center rounded-full bg-ink text-2xl font-black text-paper">
+            {latest === "understood" ? "✓" : "!"}
+          </span>
+          <p className="text-xl leading-snug font-black tracking-[-0.03em] text-balance">
+            {latest === "understood" ? t.doneUnderstood : t.doneGuidance}
+          </p>
+        </div>
       ) : (
         <form className="sticky bottom-3 grid gap-2.5 rounded-card bg-white p-4 shadow-float" onSubmit={submit}>
           <label htmlFor="answer" className="text-[17px] font-black tracking-[-0.03em]">{latest === "followup" ? t.states.followup : t.yourAnswer}</label>
