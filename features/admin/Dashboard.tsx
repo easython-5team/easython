@@ -288,7 +288,7 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
           </ol>
         )}
       </section>
-      {error && <FloatingError message={error} />}
+      {error && <FloatingError message={error} onClose={() => setError("")} />}
     </main>
   );
 }

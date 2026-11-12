@@ -1,5 +1,5 @@
 import "server-only";
-import { analyzeNotice, judge, translateAddendum, translateNotice } from "./ai/tasks.ts";
+import { analyzeNotice, judge, translateAddendum, translateNotice } from "./ai/index.ts";
 import { decide, MAX_TURNS, mergeAssessment, TERMINAL_STATES, verifyAssessment } from "./decide.ts";
 import { fail } from "./errors.ts";
 import { WORKER_LANGS, WORKER_TEXT, type Lang } from "../shared/languages.ts";
