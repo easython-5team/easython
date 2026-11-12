@@ -6,7 +6,7 @@ import { getNotice } from "../../../server/db/store.ts";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Work notice · Fieldnote" };
+export const metadata: Metadata = { title: "Work notice · 현장노트" };
 
 export default async function WorkerPage({ params }: PageProps<"/n/[id]">) {
   const { id } = await params;
