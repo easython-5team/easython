@@ -1,16 +1,16 @@
 "use client";
 
 import QRCode from "qrcode";
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { CONDITION_KINDS, isLang, LANGUAGES } from "../../shared/languages.ts";
-import type { CheckStatus, Condition, DashboardEscalation, DashboardView, DashboardWorker, TurnState, WorkerStatus } from "../../shared/types.ts";
+import type { CheckStatus, Condition, DashboardView, DashboardWorker, TurnState, WorkerStatus } from "../../shared/types.ts";
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import { post } from "../../ui/request";
 import { CHECK_BG, CHECK_ICON, KIND_BG, TONE_BG, type Tone } from "../../ui/tone.ts";
 
 const STATUS: Record<WorkerStatus, { label: string; tone: Tone }> = {
-  understood: { label: "이해 확인", tone: "ok" },
+  understood: { label: "이해 완료", tone: "ok" },
   recheck: { label: "재확인 필요", tone: "bad" },
   inProgress: { label: "답변 중", tone: "mid" },
   notAnswered: { label: "응답 전", tone: "idle" },
@@ -89,42 +89,6 @@ function QrPanel({ id, baseUrl }: { id: string; baseUrl: string }) {
   );
 }
 
-function Escalation({ item, id, onResolved }: { item: DashboardEscalation; id: string; onResolved: () => void }) {
-  const [answer, setAnswer] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function resolve(event: FormEvent) {
-    event.preventDefault();
-    if (!answer.trim()) return;
-    setBusy(true);
-    setError("");
-    try {
-      await post("resolve", { id, escalationId: item.id, answer: answer.trim() }, "답변을 전달하지 못했어요. 다시 시도해 주세요.");
-      onResolved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "답변을 전달하지 못했어요.");
-    }
-    setBusy(false);
-  }
-  return (
-    <li className={"grid gap-2 rounded-bubble p-4 " + (item.resolvedAt ? "bg-white" : "bg-place")}>
-      <div className="flex flex-wrap items-center gap-2"><strong>{item.name}</strong><span className="tag bg-white/70">{languageName(item.lang)}</span><span className="text-[13px] text-ink-2">{item.createdAt}</span></div>
-      <p className="text-[17px] font-bold tracking-[-0.02em]">“{item.questionKo}”</p>
-      <p className="text-[13px] text-ink-2" lang={item.lang}>원문: {item.question}</p>
-      {item.resolvedAt ? (
-        <p className="text-sm"><span className="tag mr-1.5 bg-action">답변 완료</span>{item.answerKo}</p>
-      ) : (
-        <form className="grid gap-2" onSubmit={resolve}>
-          <p className="text-[13px] text-ink/70">공지에 근거가 없어 AI가 답하지 않고 넘긴 질문이에요. 한국어로 답하면 작업자 언어로 번역해 전달하고 공지에도 반영해요.</p>
-          <textarea rows={2} value={answer} disabled={busy} placeholder="확정 답변을 한국어로 입력하세요" onChange={e => setAnswer(e.target.value)} />
-          {error && <p role="alert" className="rounded-2xl bg-stop/25 px-4 py-3 text-sm">{error}</p>}
-          <div><button className="btn-primary" aria-busy={busy} disabled={busy || !answer.trim()}>{busy ? <><Loading size={22} tone="light" />번역해서 전달하는 중</> : "답변 확정 · 작업자에게 전달"}</button></div>
-        </form>
-      )}
-    </li>
-  );
-}
-
 function WorkerRow({ worker, conditions, open, toggle }: {
   worker: DashboardWorker; conditions: Condition[]; open: boolean; toggle: () => void;
 }) {
@@ -134,14 +98,14 @@ function WorkerRow({ worker, conditions, open, toggle }: {
   return (
     <>
       <tr className={"border-b border-canvas align-middle " + (open ? "bg-paper" : "")}>
-        <td className="px-2 py-3"><button type="button" className="cursor-pointer font-bold underline underline-offset-4" aria-expanded={open} onClick={toggle}>{worker.name}</button></td>
-        <td className="px-2 py-3"><span className="tag bg-canvas">{languageName(worker.lang)}</span></td>
-        <td className="px-2 py-3">
+        <td className="px-2 py-3 text-center"><button type="button" className="cursor-pointer font-bold underline underline-offset-4" aria-expanded={open} onClick={toggle}>{worker.name}</button></td>
+        <td className="px-2 py-3 text-center"><span className="tag bg-canvas">{languageName(worker.lang)}</span></td>
+        <td className="px-2 py-3 text-center">
           <span className={"tag m-0.5 " + TONE_BG[status.tone]}>{status.label}</span>
           {worker.waiting && <span className={"tag m-0.5 " + TONE_BG.wait}>관리자 답변 대기</span>}
         </td>
-        <td className="px-2 py-3">
-          <div className="flex flex-wrap gap-1">
+        <td className="px-2 py-3 text-center">
+          <div className="flex flex-wrap justify-center gap-1">
             {conditions.filter(c => c.check).map(c => {
               const item = assessment.find(a => a.id === c.id);
               const s: CheckStatus = item?.status ?? "missing";
@@ -149,11 +113,11 @@ function WorkerRow({ worker, conditions, open, toggle }: {
             })}
           </div>
         </td>
-        <td className="max-w-[260px] px-2 py-3">{last ? <>{last.inputKo}{last.mode === "voice" && <span className="tag ml-1.5 bg-time text-white">음성</span>}</> : <span className="text-ink-3">-</span>}</td>
+        <td className="max-w-[260px] px-2 py-3 text-center">{last ? <>{last.inputKo}{last.mode === "voice" && <span className="tag ml-1.5 bg-time text-white">음성</span>}</> : <span className="text-ink-3">-</span>}</td>
       </tr>
       {open && (
         <tr className="border-b border-canvas bg-paper">
-          <td colSpan={5} className="px-2 py-4">
+          <td colSpan={5} className="px-2 py-4 text-left">
             <ol className="grid gap-3">
               {worker.turns.map(turn => (
                 <li key={turn.turn} className="grid gap-1 border-l-[3px] border-ink pl-3">
@@ -187,17 +151,10 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
   const [data, setData] = useState<DashboardView | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState("");
+  const [showExample, setShowExample] = useState(false);
+  const exampleId = useId();
 
-  async function refresh() {
-    try {
-      setData(await post("dashboard", { id }, "현황을 불러오지 못했어요."));
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "현황을 불러오지 못했어요.");
-    }
-  }
-
-  // Poll so new answers and escalations appear without a reload.
+  // Poll so new worker answers appear without a reload.
   useEffect(() => {
     let cancelled = false;
     const load = () => post("dashboard", { id }, "현황을 불러오지 못했어요.")
@@ -216,16 +173,14 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
       </main>
     );
   }
-  const { notice, stats, workers, escalations } = data;
-  const pending = escalations.filter(e => !e.resolvedAt);
-  const done = escalations.filter(e => e.resolvedAt);
+  const { notice, stats, workers } = data;
   const tiles: { label: string; value: number; dot: string }[] = [
     { label: "접속", value: stats.joined, dot: "bg-ink" },
-    { label: "이해 확인", value: stats.understood, dot: "bg-action" },
+    { label: "이해 완료", value: stats.understood, dot: "bg-action" },
     { label: "재확인 필요", value: stats.recheck, dot: "bg-stop" },
-    { label: "답변 중", value: stats.inProgress, dot: "bg-except" },
-    { label: "관리자 답변 대기", value: stats.waiting, dot: "bg-place" },
   ];
+  // What a correct answer has to say: the conditions the manager chose to check.
+  const example = notice.draft.conditions.filter(c => c.check);
 
   return (
     <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6">
@@ -239,7 +194,7 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
 
       <QrPanel id={id} baseUrl={baseUrl} />
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label="이해 확인 현황">
+      <section className="grid grid-cols-3 gap-3" aria-label="이해 확인 현황">
         {tiles.map(tile => (
           <div key={tile.label} className="grid gap-1 rounded-bubble bg-paper px-5 py-4 shadow-soft">
             <span className="flex items-center gap-1.5 text-[13px] font-bold text-ink-2"><i aria-hidden="true" className={"size-2.5 rounded-full " + tile.dot} />{tile.label}</span>
@@ -248,22 +203,12 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
         ))}
       </section>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,.85fr)_minmax(0,1.3fr)]">
-        <section className="card">
-          <div className="mb-4 flex items-center justify-between gap-3"><h2>관리자 확인 요청</h2>{pending.length > 0 && <span className="tag bg-ink !text-paper">{pending.length}</span>}</div>
-          {escalations.length === 0 ? <p className="text-ink-2">공지로 답할 수 없는 질문이 들어오면 여기에 표시돼요.</p> : (
-            <ul className="grid gap-3">
-              {[...pending, ...done].map(item => <Escalation key={item.id} item={item} id={id} onResolved={refresh} />)}
-            </ul>
-          )}
-        </section>
-
         <section className="card">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2>작업자별 이해 현황</h2><span className="text-[13px] text-ink-2">이름을 누르면 판정 근거를 볼 수 있어요</span></div>
           {workers.length === 0 ? <p className="text-ink-2">아직 접속한 작업자가 없어요. QR을 공유해 주세요.</p> : (
             <div className="overflow-x-auto rounded-bubble bg-white px-3">
               <table className="w-full border-collapse text-sm">
-                <thead><tr className="border-b border-grid text-left text-xs whitespace-nowrap text-ink-2">
+                <thead><tr className="border-b border-grid text-center text-xs whitespace-nowrap text-ink-2">
                   <th className="px-2 py-2.5">작업자</th><th className="px-2 py-2.5">언어</th><th className="px-2 py-2.5">상태</th><th className="px-2 py-2.5">확인 조건</th><th className="px-2 py-2.5">최근 답변 (한국어)</th>
                 </tr></thead>
                 <tbody>
@@ -277,10 +222,10 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
             </div>
           )}
         </section>
-      </div>
 
-      <section className="card">
-        <h2>공지 내용과 반영 이력</h2>
+      <section className="card grid gap-6">
+        <div>
+        <h2>공지 내용</h2>
         <ul className="mt-4 mb-3 grid gap-2">
           {notice.draft.conditions.map(c => (
             <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-white px-3 py-2.5">
@@ -289,12 +234,34 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
             </li>
           ))}
         </ul>
-        <p className="text-[13px] text-ink-2">상황 질문: {notice.draft.question}</p>
-        {notice.addenda.length > 0 && (
-          <ol className="mt-3 grid list-decimal gap-1.5 pl-5 text-sm">
-            {notice.addenda.map(a => <li key={a.id}><strong>v{a.version}</strong> Q. {a.questionKo} → A. {a.answerKo}</li>)}
-          </ol>
-        )}
+        </div>
+        <div className="grid gap-3">
+          <h2>질문 내용</h2>
+          <div className="rounded-2xl bg-white">
+            <div className="flex items-start justify-between gap-3 px-4 py-3">
+              <p className="font-semibold">{notice.draft.question}</p>
+              <button type="button" aria-expanded={showExample} aria-controls={exampleId}
+                aria-label={showExample ? "예시 답안 닫기" : "예시 답안 보기"} onClick={() => setShowExample(!showExample)}
+                className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-ink-2 hover:bg-canvas hover:text-ink">
+                <svg aria-hidden="true" viewBox="0 0 12 12" className={"size-3.5 transition-transform " + (showExample ? "rotate-180" : "")}>
+                  <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+            {showExample && (
+              <div id={exampleId} className="grid gap-2 border-t border-canvas px-4 py-3">
+                <p className="eyebrow">예시 답안 · 작업자 답에 들어가야 할 내용</p>
+                <ul className="grid gap-1.5">
+                  {example.map(c => (
+                    <li key={c.id} className="flex items-start gap-2 text-[15px]">
+                      <span className={"tag mt-0.5 " + KIND_BG[c.kind]}>{CONDITION_KINDS[c.kind]}</span>{c.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
       {error && <FloatingError message={error} onClose={() => setError("")} />}
     </main>
