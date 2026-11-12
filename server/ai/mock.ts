@@ -8,14 +8,13 @@ import "server-only";
 //   contains 아니 / no / không        → conflict (re-explanation)
 //   shorter than 6 characters        → missing (one follow-up question)
 //   anything else                    → every checked condition met
-import { LANGUAGES, WORKER_LANGS, type Lang } from "../../shared/languages.ts";
+import { WORKER_LANGS, type Lang } from "../../shared/languages.ts";
 import { datedTitle } from "../../shared/title.ts";
 import type { QuestionRequest } from "./tasks.ts";
 import type {
   AddendumTranslations, Condition, ConditionKind, Draft, JudgeContext, Question, RawAssessment, Translation, Verdict,
 } from "../../shared/types.ts";
 
-const tag = (lang: Lang) => `[${LANGUAGES[lang].native}] `;
 
 function sentences(source: string): string[] {
   return source.split(/\n+|(?<=[.!?。])\s+/).map(s => s.trim()).filter(s => s && !/^\[.*\]$/.test(s));
@@ -59,12 +58,12 @@ export async function writeQuestions(_source: string, draft: Draft, { type, coun
   });
 }
 
-export async function translateNotice(source: string, draft: Draft, lang: Lang): Promise<Translation> {
+export async function translateNotice(source: string, draft: Draft, _lang: Lang): Promise<Translation> {
   return {
-    title: tag(lang) + draft.title,
-    summary: tag(lang) + source.trim(),
-    questions: draft.questions.map(q => ({ id: q.id, text: tag(lang) + q.text })),
-    conditions: draft.conditions.map(c => ({ id: c.id, text: tag(lang) + c.label })),
+    title: draft.title,
+    summary: source.trim(),
+    questions: draft.questions.map(q => ({ id: q.id, text: q.text })),
+    conditions: draft.conditions.map(c => ({ id: c.id, text: c.label })),
     backTranslation: draft.conditions.map(c => c.label).join("\n"),
     checks: draft.conditions.map(c => ({ id: c.id, preserved: true, note: "" })),
   };
@@ -88,6 +87,6 @@ export async function judge({ question, answer }: JudgeContext): Promise<Verdict
 
 export async function translateAddendum({ questionKo, answerKo }: { questionKo: string; answerKo: string }): Promise<AddendumTranslations> {
   return Object.fromEntries(
-    WORKER_LANGS.map(lang => [lang, { question: tag(lang) + questionKo, answer: tag(lang) + answerKo }]),
+    WORKER_LANGS.map(lang => [lang, { question: questionKo, answer: answerKo }]),
   ) as AddendumTranslations;
 }

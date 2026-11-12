@@ -35,7 +35,7 @@ npm test            # 판정 상태 머신 테스트 (AI·DB 없이 실행)
 npm run verify      # 타입체크 → React Compiler 검사 → 테스트 → 프로덕션 빌드
 ```
 
-개발 모드에서 `OPENAI_API_KEY`가 비어 있으면 `server/ai/mock.ts`의 개발용 가짜 AI가 대신 응답한다. 관리자가 쓴 문장을 그대로 조건으로 나누고, 번역은 `[English]` 같은 표시만 붙인다. 작업자 답변은 규칙으로 판정한다: `?`가 있으면 관리자에게 넘기고, `아니`·`no`·`không`이 있으면 충돌, 6자 미만이면 되묻기, 그 밖에는 이해 확인. 배포(production)에서는 키가 없으면 오류를 낸다.
+개발 모드에서 `OPENAI_API_KEY`가 비어 있으면 `server/ai/mock.ts`의 개발용 가짜 AI가 대신 응답한다. 관리자가 쓴 문장을 그대로 조건으로 나누고, 번역은 하지 않고 한국어 원문을 그대로 돌려준다. 작업자 답변은 규칙으로 판정한다: `?`가 있으면 관리자에게 넘기고, `아니`·`no`·`không`이 있으면 충돌, 6자 미만이면 되묻기, 그 밖에는 이해 확인. 배포(production)에서는 키가 없으면 오류를 낸다.
 
 TypeScript(strict, `noUncheckedIndexedAccess`)와 React Compiler(`reactCompiler: true`)를 사용한다. 소스는 `.ts` 확장자로 import하며, 테스트와 스크립트는 Node 24의 타입 제거 기능으로 빌드 없이 실행된다. `server/`의 파일은 `server-only`로 보호되므로 Node로 직접 실행할 때는 `--conditions=react-server`를 붙인다. `npm run check:compiler`는 모든 클라이언트 컴포넌트·훅이 컴파일러로 최적화되는지 확인하고, bail-out이 하나라도 있으면 실패한다. React Compiler 1.0은 `try/finally`와 구조 분해 props 기본값에서 bail-out하므로 두 문법을 쓰지 않는다.
 
