@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CONDITION_KINDS, LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang } from "../../shared/languages.ts";
 import type { Condition, ConditionKind, Draft, PreviewResult, RecentNotice } from "../../shared/types.ts";
 import NoticeView from "../worker/NoticeView";
@@ -14,14 +14,8 @@ import { KIND_BG } from "../../ui/tone.ts";
 
 const networkError = "요청을 완료하지 못했어요. 연결을 확인한 뒤 다시 시도하세요.";
 const STEPS = ["작업 변경 사항 작성", "AI 노트 검수", "작업자 화면 검수", "발행 · QR 공유"];
-const STEP_IDS = ["step-source", "step-note", "step-preview", "step-publish"];
 const KIND_OPTIONS: SelectOption<ConditionKind>[] = (Object.entries(CONDITION_KINDS) as Array<[ConditionKind, string]>)
   .map(([value, label]) => ({ value, label, swatch: KIND_BG[value].split(" ")[0] }));
-
-// Jumps to a step's section; the steps stay on one page, so going back keeps every edit.
-function goToStep(index: number) {
-  document.getElementById(STEP_IDS[index] ?? "")?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
 
 // Splits the source into plain and evidence-highlighted segments.
 interface Segment { text: string; id?: string }
@@ -47,6 +41,10 @@ function segments(source: string, conditions: Condition[]): Segment[] {
 export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const router = useRouter();
   const [source, setSource] = useState("");
+  // The text the current AI note was made from; editing the source afterwards needs a new note.
+  const [analyzedSource, setAnalyzedSource] = useState("");
+  // Which step's screen is open. Moving between screens never discards work.
+  const [view, setView] = useState(0);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewLang, setPreviewLang] = useState<Lang>("en");
@@ -59,7 +57,8 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const speaker = useSpeaker(previewLang);
 
   const step = !draft ? 0 : !preview ? 1 : 2;
-  const marks = draft ? segments(source, draft.conditions) : [];
+  const screen = Math.min(view, step);
+  const marks = draft ? segments(analyzedSource, draft.conditions) : [];
   const mismatch = preview ? WORKER_LANGS.flatMap(lang => preview.translations[lang].checks.filter(c => !c.preserved)) : [];
 
   async function run(name: string, work: () => Promise<void>) {
@@ -71,6 +70,11 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
       setError(err instanceof Error ? err.message : networkError);
     }
     setBusy("");
+  }
+  function go(next: number) {
+    speaker.stop();
+    setView(next);
+    window.scrollTo({ top: 0 });
   }
   function resetFrom(level: 1 | 2) {
     if (level <= 1) setDraft(null);
@@ -100,19 +104,16 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     const { draft: result } = await post("analyze", { source }, networkError);
     resetFrom(2);
     setDraft(result);
+    setAnalyzedSource(source);
+    go(1);
   });
   const makePreview = () => run("preview", async () => {
-    const result = await post("preview", { source, draft }, networkError);
+    const result = await post("preview", { source: analyzedSource, draft }, networkError);
     setPreview(result);
     setPreviewedQuestion(draft?.question ?? "");
     setAcceptMismatch(false);
+    go(2);
   });
-
-  // "질문 생성하기" moves the manager on to step 3 once its preview exists.
-  const previewId = preview?.previewId;
-  useEffect(() => {
-    if (previewId) goToStep(2);
-  }, [previewId]);
   const publish = () => run("publish", async () => {
     if (!preview) return;
     const { id } = await post("publish", { previewId: preview.previewId, acceptMismatch }, networkError);
@@ -130,57 +131,62 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
       <header className="grid gap-5 pt-2 pb-1">
         <h1>안녕하세요, 관리자님<br />좋은 하루에요.</h1>
         <ol className="flex w-full items-center" aria-label="진행 단계">
-          {STEPS.map((label, i) => (
-            <li key={label} aria-current={i === step ? "step" : undefined} className={"flex items-center gap-2 " + (i > 0 ? "flex-1 pl-2" : "")}>
-              {i > 0 && <span aria-hidden="true" className={"h-0.5 flex-1 rounded-full " + (i <= step ? "bg-ink" : "bg-grid")} />}
-              <button type="button" title={label} aria-label={`${i + 1}단계 ${label}${i <= step || (i === 3 && preview) ? "로 이동" : " (아직 열리지 않음)"}`}
-                disabled={!(i <= step || (i === 3 && preview))} onClick={() => goToStep(i)}
-                className={"grid shrink-0 cursor-pointer place-items-center rounded-full font-black transition-all enabled:hover:scale-110 disabled:cursor-default disabled:opacity-100 "
-                  + (i === step ? "size-9 bg-ink text-[15px] text-paper shadow-float"
-                    : i < step || (i === 3 && preview) ? "size-7 bg-action text-xs text-ink" : "size-7 bg-paper text-xs text-ink-3")}>
-                {i + 1}
-              </button>
-            </li>
-          ))}
+          {STEPS.map((label, i) => {
+            const open = i <= step && i < 3;
+            return (
+              <li key={label} aria-current={i === screen ? "step" : undefined} className={"flex items-center gap-2 " + (i > 0 ? "flex-1 pl-2" : "")}>
+                {i > 0 && <span aria-hidden="true" className={"h-0.5 flex-1 rounded-full " + (i <= step ? "bg-ink" : "bg-grid")} />}
+                <button type="button" title={label} aria-label={`${i + 1}단계 ${label}${open ? "" : " (아직 열리지 않음)"}`}
+                  disabled={!open || Boolean(busy)} onClick={() => go(i)}
+                  className={"grid shrink-0 cursor-pointer place-items-center rounded-full font-black transition-all enabled:hover:scale-110 disabled:cursor-default disabled:opacity-100 "
+                    + (i === screen ? "size-9 bg-ink text-[15px] text-paper shadow-float"
+                      : open ? "size-7 bg-action text-xs text-ink" : "size-7 bg-paper text-xs text-ink-3")}>
+                  {i + 1}
+                </button>
+              </li>
+            );
+          })}
         </ol>
       </header>
 
-      <div className={"grid items-start gap-5 " + (draft ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" : "max-w-[760px]")}>
-        {/* ---------- source ---------- */}
-        <section id="step-source" className="card scroll-mt-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2><label htmlFor="source">작업 변경 사항</label></h2>
-            {draft && (
-              <button type="button" className="btn-text" disabled={Boolean(busy)} onClick={() => resetFrom(1)}>원문 수정</button>
+      {/* ---------- screen 1: the manager's text ---------- */}
+      {screen === 0 && (
+        <section className="card max-w-[760px]">
+          <h2 className="mb-4"><label htmlFor="source">작업 변경 사항</label></h2>
+          <textarea id="source" rows={11} value={source} disabled={Boolean(busy)} onChange={e => setSource(e.target.value)}
+            className="min-h-[270px] text-[16px] leading-relaxed"
+            placeholder="언제부터, 어디서, 무엇이 평소와 다르게 바뀌는지 평소처럼 적어 주세요." />
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {draft && source === analyzedSource && (
+              <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(1)}>AI 노트로 →</button>
             )}
+            <button className="btn-primary" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
+              {busy === "analyze" ? <><Loading size={22} tone="light" />AI 노트를 만드는 중</> : draft ? "AI 노트 다시 생성" : "AI 노트 생성"}
+            </button>
           </div>
-          {draft ? (
-            <div className="rounded-bubble bg-white p-4 text-[16px] leading-loose whitespace-pre-wrap" aria-label="작업 변경 사항과 AI가 찾은 근거">
-              {marks.map(({ text, id }, i) => id
-                ? <mark key={i} onMouseEnter={() => setFocus(id)} onMouseLeave={() => setFocus("")}
-                    className={"cursor-default rounded-md px-0.5 text-ink transition " + KIND_BG[kinds.get(id) ?? "action"]
-                      + (focus === id ? " ring-2 ring-ink" : " opacity-80")}>
-                    {text}<sup className="ml-0.5 text-[10px] font-black">{id.slice(1)}</sup>
-                  </mark>
-                : <span key={i}>{text}</span>)}
-            </div>
-          ) : (
-            <textarea id="source" rows={11} value={source} disabled={Boolean(busy)} onChange={e => setSource(e.target.value)}
-              className="min-h-[270px] text-[16px] leading-relaxed"
-              placeholder="언제부터, 어디서, 무엇이 평소와 다르게 바뀌는지 평소처럼 적어 주세요." />
-          )}
-          {!draft && (
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <button className="btn-primary" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
-                {busy === "analyze" ? <><Loading size={22} tone="light" />AI 노트를 만드는 중</> : "AI 노트 생성"}
-              </button>
-            </div>
-          )}
+        </section>
+      )}
+
+      {screen === 1 && draft && (
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <section className="card">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2>작업 변경 사항</h2>
+            <button type="button" className="btn-text" disabled={Boolean(busy)} onClick={() => go(0)}>원문 수정</button>
+          </div>
+          <div className="rounded-bubble bg-white p-4 text-[16px] leading-loose whitespace-pre-wrap" aria-label="작업 변경 사항과 AI가 찾은 근거">
+            {marks.map(({ text, id }, i) => id
+              ? <mark key={i} onMouseEnter={() => setFocus(id)} onMouseLeave={() => setFocus("")}
+                  className={"cursor-default rounded-md px-0.5 text-ink transition " + KIND_BG[kinds.get(id) ?? "action"]
+                    + (focus === id ? " ring-2 ring-ink" : " opacity-80")}>
+                  {text}<sup className="ml-0.5 text-[10px] font-black">{id.slice(1)}</sup>
+                </mark>
+              : <span key={i}>{text}</span>)}
+          </div>
         </section>
 
-        {/* ---------- AI analysis review ---------- */}
-        {draft && (
-          <section id="step-note" className="card scroll-mt-6">
+        {/* ---------- screen 2: AI note review ---------- */}
+          <section className="card">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2>AI 노트</h2>
               <span className="text-[13px] text-ink-2">체크한 조건을 작업자 답변에서 확인해요</span>
@@ -211,20 +217,23 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
             </ul>
             <button type="button" className="btn-text" onClick={addCondition}>+ 조건 직접 추가</button>
 
-            {!preview && (
-              <div className="mt-5 flex justify-center">
+            <div className="mt-5 flex justify-center">
+              {preview ? (
+                <button type="button" className="btn-primary" disabled={Boolean(busy)} onClick={() => go(2)}>작업자 화면 검수로 →</button>
+              ) : (
                 <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makePreview}>
                   {busy === "preview" ? <><Loading size={22} tone="light" />질문을 만드는 중</> : "질문 생성하기"}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </section>
-        )}
       </div>
+      )}
 
       {/* ---------- worker preview & translation check ---------- */}
-      {preview && translation && draft && (
-        <section id="step-preview" className="card scroll-mt-6">
+      {/* ---------- screen 3: worker preview, question and publish ---------- */}
+      {screen === 2 && preview && translation && draft && (
+        <section className="card">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <h2>작업자 화면 검수</h2>
             <div className="flex gap-1.5 rounded-full bg-white p-1" role="tablist" aria-label="미리보기 언어">
@@ -291,7 +300,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                 <p className="mt-2 rounded-2xl bg-white p-3 whitespace-pre-wrap">{translation.backTranslation}</p>
               </details>
 
-              <div id="step-publish" className="mt-6 grid scroll-mt-6 justify-items-start gap-3 rounded-bubble bg-white p-5">
+              <div className="mt-6 grid justify-items-start gap-3 rounded-bubble bg-white p-5">
                 {mismatch.length > 0 && (
                   <label className="flex items-center gap-2 text-sm font-bold">
                     <input type="checkbox" checked={acceptMismatch} onChange={e => setAcceptMismatch(e.target.checked)} />
@@ -308,7 +317,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
         </section>
       )}
 
-      {recent.length > 0 && (
+      {screen === 0 && recent.length > 0 && (
         <section className="card">
           <h2>발행한 공지</h2>
           <ul className="mt-3 grid gap-1.5">
