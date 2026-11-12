@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } fro
 import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang, type WorkerText } from "../../shared/languages.ts";
 import { progress as questionProgress } from "../../shared/questions.ts";
 import type { InputMode, SessionView, WorkerTurn } from "../../shared/types.ts";
-import NoticeView, { ListenButton, SituationCard } from "./NoticeView";
+import NoticeView, { SituationCard } from "./NoticeView";
 import { post } from "../../ui/request";
-import { useRecognition, useSpeaker } from "./speech";
+import { useRecognition } from "./speech";
 import Loading from "../../ui/Loading";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 
@@ -120,7 +120,6 @@ interface ConversationProps {
 }
 
 function Conversation({ id, sessionId, view, setView, reload, t, lang }: ConversationProps) {
-  const speaker = useSpeaker(lang);
   const [answer, setAnswer] = useState("");
   const [mode, setMode] = useState<InputMode>("text");
   const [busy, setBusy] = useState(false);
@@ -179,7 +178,6 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   }
 
   function go(next: "read" | "answer") {
-    speaker?.stop();
     recognition.stop();
     setStep(next);
     window.scrollTo({ top: 0 });
@@ -202,7 +200,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     return (
       <div className="grid gap-4" lang={lang}>
         {progress}
-        <NoticeView notice={view.notice} t={t} speaker={speaker} showQuestion={false} />
+        <NoticeView notice={view.notice} t={t} showQuestion={false} />
         <div className="sticky bottom-3 pt-2">
           <button type="button" className="btn-primary w-full !py-4 text-[17px] shadow-float" onClick={() => go("answer")}>
             {t.readDone} →
@@ -225,7 +223,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
           const index = questions.indexOf(q);
           return (
             <div key={q.id} className="grid gap-3">
-            <SituationCard id={q.id} question={q.text} type={q.type} index={index + 1} total={questions.length} t={t} speaker={speaker} />
+            <SituationCard question={q.text} type={q.type} index={index + 1} total={questions.length} t={t} />
             {turns.filter(turn => turn.questionId === q.id).map((turn: WorkerTurn) => {
               const managerAnswer = answers.get(turn.turn);
               return (
@@ -235,10 +233,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
                     <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.answer}</p>
                   </div>
                   <div className={"max-w-[94%] rounded-bubble rounded-bl-md p-4 text-ink shadow-soft " + TURN_BG[turn.state]}>
-                    <div className="mb-2.5 flex items-center justify-between gap-3">
-                      <strong className="text-[15px] font-black tracking-[-0.03em]">{t.states[turn.state]}</strong>
-                      <ListenButton id={"turn-" + turn.turn} text={turn.message} speaker={speaker} t={t} />
-                    </div>
+                    <strong className="mb-2.5 block text-[15px] font-black tracking-[-0.03em]">{t.states[turn.state]}</strong>
                     {turn.conditions.length > 0 && (
                       <ul className="mb-2.5 grid gap-1.5">
                         {turn.conditions.map(c => (

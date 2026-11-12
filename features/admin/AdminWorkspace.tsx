@@ -7,7 +7,6 @@ import { MAX_QUESTIONS, QUESTION_TYPES } from "../../shared/questions.ts";
 import type { Condition, ConditionKind, Draft, PreviewResult, Question, QuestionType, RecentNotice } from "../../shared/types.ts";
 import NoticeView from "../worker/NoticeView";
 import { post } from "../../ui/request";
-import { useSpeaker } from "../worker/speech";
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import Select, { type SelectOption } from "../../ui/Select";
@@ -82,7 +81,6 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const speaker = useSpeaker(previewLang);
 
   const step = !draft ? 0 : !preview ? 1 : 2;
   const screen = Math.min(view, step);
@@ -100,7 +98,6 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     setBusy("");
   }
   function go(next: number) {
-    speaker.stop();
     setView(next);
     window.scrollTo({ top: 0 });
   }
@@ -108,7 +105,6 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     if (level <= 1) setDraft(null);
     setPreview(null);
     setAcceptMismatch(false);
-    speaker.stop();
   }
   function updateDraft(changes: Partial<Draft>) {
     setDraft(current => (current ? { ...current, ...changes } : current));
@@ -316,7 +312,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                   <button key={lang} role="tab" type="button" aria-selected={previewLang === lang}
                     className={"inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold "
                       + (previewLang === lang ? "bg-ink text-paper" : "text-ink-2 hover:text-ink")}
-                    onClick={() => { speaker.stop(); setPreviewLang(lang); }}>
+                    onClick={() => setPreviewLang(lang)}>
                     {LANGUAGES[lang].native}{bad && <span className="grid size-[18px] place-items-center rounded-full bg-stop text-xs text-ink" aria-label="검증 경고">!</span>}
                   </button>
                 );
@@ -327,7 +323,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
             <div className="mx-auto w-full max-w-[380px] rounded-[46px] bg-ink p-2.5 shadow-float" aria-label="작업자 휴대폰 화면 미리보기">
               <div className="max-h-[680px] overflow-y-auto rounded-[38px] bg-canvas px-3 pt-10 pb-4">
                 <div aria-hidden="true" className="mx-auto -mt-7 mb-4 h-6 w-24 rounded-full bg-ink" />
-                <NoticeView t={WORKER_TEXT[previewLang]} speaker={speaker}
+                <NoticeView t={WORKER_TEXT[previewLang]}
                   notice={{
                     ...translation, lang: previewLang, addenda: [],
                     conditions: translation.conditions.map(c => ({ ...c, kind: kinds.get(c.id) })),

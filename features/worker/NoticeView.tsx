@@ -2,31 +2,7 @@
 
 import type { WorkerText } from "../../shared/languages.ts";
 import type { QuestionType, WorkerNotice } from "../../shared/types.ts";
-import type { Speaker } from "./speech.ts";
 import { KIND_BG } from "../../ui/tone.ts";
-
-interface ListenProps {
-  id: string;
-  text: string;
-  speaker: Speaker | undefined;
-  t: WorkerText;
-  dark?: boolean;
-}
-
-export function ListenButton({ id, text, speaker, t, dark }: ListenProps) {
-  if (!speaker) return null;
-  const active = speaker.speaking === id;
-  const tone = active ? "bg-except text-ink" : dark ? "bg-white/15 text-paper hover:bg-white/25" : "bg-white text-ink shadow-soft hover:bg-paper";
-  return (
-    <button type="button" aria-pressed={active}
-      className={"inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition " + tone}
-      onClick={() => (active ? speaker.stop() : speaker.speak(id, text))}>
-      <span aria-hidden="true" className={active ? "size-2 rounded-[2px] bg-current"
-        : "size-0 border-y-[5px] border-l-8 border-y-transparent border-l-current"} />
-      {active ? t.stop : t.listen}
-    </button>
-  );
-}
 
 /** Notice fields the view needs; the admin preview builds this before publishing. */
 export type NoticeViewData = Pick<WorkerNotice, "lang" | "title" | "summary" | "questions" | "conditions" | "addenda">;
@@ -36,51 +12,40 @@ export type NoticeViewData = Pick<WorkerNotice, "lang" | "title" | "summary" | "
 interface NoticeViewProps {
   notice: NoticeViewData;
   t: WorkerText;
-  speaker?: Speaker;
   /** The worker app shows the questions on their own step; the admin preview keeps them inline. */
   showQuestion?: boolean;
 }
 
 interface SituationProps {
-  id: string;
   question: string;
   type: QuestionType;
   /** 1-based position, shown when there is more than one question. */
   index: number;
   total: number;
   t: WorkerText;
-  speaker: Speaker | undefined;
 }
 
-export function SituationCard({ id, question, type, index, total, t, speaker }: SituationProps) {
+export function SituationCard({ question, type, index, total, t }: SituationProps) {
   return (
     <section className="grid gap-2 rounded-bubble bg-ink p-5 text-paper shadow-float">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="eyebrow text-ink-3">
-          {total > 1 && <span className="mr-1.5 tabular-nums text-paper">{index}/{total}</span>}
-          {type === "short" ? t.shortQuestion : t.situation}
-        </h3>
-        <ListenButton id={"question-" + id} text={question} speaker={speaker} t={t} dark />
-      </div>
+      <h3 className="eyebrow text-ink-3">
+        {total > 1 && <span className="mr-1.5 tabular-nums text-paper">{index}/{total}</span>}
+        {type === "short" ? t.shortQuestion : t.situation}
+      </h3>
       <p className="text-xl leading-snug font-bold tracking-[-0.03em] text-balance">{question}</p>
     </section>
   );
 }
 
-export default function NoticeView({ notice, t, speaker, showQuestion }: NoticeViewProps) {
-  const everything = [notice.title, ...notice.conditions.map(c => c.text), ...notice.questions.map(q => q.text)].join(". ");
+export default function NoticeView({ notice, t, showQuestion }: NoticeViewProps) {
   return (
     <article lang={notice.lang} className="overflow-hidden rounded-card bg-ink shadow-float">
       {/* dark hero: what changed, in one line */}
       <header className="grid gap-4 px-5 pt-5 pb-7 text-paper">
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex items-center gap-2 text-[13px] font-bold text-ink-3">
-            <span aria-hidden="true" className="size-2 rounded-full bg-stop" />{t.whatChanged}
-          </span>
-          <ListenButton id="all" text={everything} speaker={speaker} t={t} dark />
-        </div>
+        <span className="flex items-center gap-2 text-[13px] font-bold text-ink-3">
+          <span aria-hidden="true" className="size-2 rounded-full bg-stop" />{t.whatChanged}
+        </span>
         <h2 className="text-[26px] leading-[1.3] font-bold tracking-[-0.045em] text-balance">{notice.title}</h2>
-        {speaker && !speaker.hasVoice && <p className="text-[13px] text-ink-3">{t.listenUnsupported}</p>}
       </header>
 
       {/* paper sheet: the conditions */}
@@ -110,12 +75,11 @@ export default function NoticeView({ notice, t, speaker, showQuestion }: NoticeV
 
         <details className="text-[15px]">
           <summary className="text-sm text-ink-2">{t.fullNotice}</summary>
-          <p className="mt-2 mb-3 whitespace-pre-wrap text-ink/80">{notice.summary}</p>
-          <ListenButton id="summary" text={notice.summary} speaker={speaker} t={t} />
+          <p className="mt-2 whitespace-pre-wrap text-ink/80">{notice.summary}</p>
         </details>
 
         {(showQuestion ?? true) && notice.questions.map((q, i) => (
-          <SituationCard key={q.id} id={q.id} question={q.text} type={q.type} index={i + 1} total={notice.questions.length} t={t} speaker={speaker} />
+          <SituationCard key={q.id} question={q.text} type={q.type} index={i + 1} total={notice.questions.length} t={t} />
         ))}
       </div>
     </article>
