@@ -14,7 +14,7 @@ import { KIND_BG } from "../../ui/tone.ts";
 import { datedTitle, splitTitle } from "../../shared/title.ts";
 
 const networkError = "요청을 완료하지 못했어요. 연결을 확인한 뒤 다시 시도하세요.";
-const STEPS = ["작업 변경 사항 작성", "AI 노트 검수", "작업자 화면 검수", "발행 · QR 공유"];
+const STEPS = ["공지 쓰기", "확인할 내용", "질문 · 미리보기", "전송"];
 const KIND_OPTIONS: SelectOption<ConditionKind>[] = (Object.entries(CONDITION_KINDS) as Array<[ConditionKind, string]>)
   .map(([value, label]) => ({ value, label, swatch: KIND_BG[value].split(" ")[0] }));
 const TYPE_ORDER: QuestionType[] = ["open", "short"];
@@ -75,7 +75,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   const [acceptMismatch, setAcceptMismatch] = useState(false);
   // The Korean questions the current preview was translated from.
   const [previewedQuestions, setPreviewedQuestions] = useState("");
-  // How the next "질문 생성하기" writes questions. A null count follows the number of checked conditions.
+  // How "질문 만들기" writes questions. A null count follows the number of checked items.
   const [questionKind, setQuestionKind] = useState<QuestionType>("open");
   const [chosenCount, setChosenCount] = useState<number | null>(null);
   const [focus, setFocus] = useState("");
@@ -179,18 +179,19 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
     <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6" aria-busy={Boolean(busy)}>
       <header className="grid gap-5 pt-2 pb-1">
         <h1>안녕하세요, 관리자님<br />좋은 하루에요.</h1>
-        <ol className="flex w-full items-center" aria-label="진행 단계">
+        <ol className="grid w-full grid-cols-4 gap-2" aria-label="진행 단계">
           {STEPS.map((label, i) => {
             const open = i <= step && i < 3;
+            const current = i === screen;
             return (
-              <li key={label} aria-current={i === screen ? "step" : undefined} className={"flex items-center gap-2 " + (i > 0 ? "flex-1 pl-2" : "")}>
-                {i > 0 && <span aria-hidden="true" className={"h-0.5 flex-1 rounded-full " + (i <= step ? "bg-ink" : "bg-grid")} />}
-                <button type="button" title={label} aria-label={`${i + 1}단계 ${label}${open ? "" : " (아직 열리지 않음)"}`}
+              <li key={label} aria-current={current ? "step" : undefined}>
+                <button type="button" aria-label={`${i + 1}단계 ${label}${open ? "" : " (아직 열리지 않음)"}`}
                   disabled={!open || Boolean(busy)} onClick={() => go(i)}
-                  className={"grid shrink-0 cursor-pointer place-items-center rounded-full font-black transition-all enabled:hover:scale-110 disabled:cursor-default disabled:opacity-100 "
-                    + (i === screen ? "size-9 bg-ink text-[15px] text-paper shadow-float"
-                      : open ? "size-7 bg-action text-xs text-ink" : "size-7 bg-paper text-xs text-ink-3")}>
-                  {i + 1}
+                  className="grid w-full cursor-pointer gap-1.5 text-left disabled:cursor-default">
+                  <span aria-hidden="true" className={"h-1.5 rounded-full " + (current ? "bg-ink" : i <= step ? "bg-action" : "bg-grid")} />
+                  <span className={"text-[13px] font-bold " + (current ? "text-ink" : open ? "text-ink-2" : "text-ink-3")}>
+                    {i + 1}. {label}
+                  </span>
                 </button>
               </li>
             );
@@ -201,16 +202,16 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
       {/* ---------- screen 1: the manager's text ---------- */}
       {screen === 0 && (
         <section className="card max-w-[760px]">
-          <h2 className="mb-4"><label htmlFor="source">작업 변경 사항</label></h2>
+          <h2 className="mb-4"><label htmlFor="source">무엇이 바뀌나요?</label></h2>
           <textarea id="source" rows={11} value={source} disabled={Boolean(busy)} onChange={e => setSource(e.target.value)}
             className="min-h-[270px] text-[16px] leading-relaxed"
-            placeholder="언제부터, 어디서, 무엇이 평소와 다르게 바뀌는지 평소처럼 적어 주세요." />
+            placeholder={"예) 내일 오전 8시부터 B동 2층 도장 라인은 사용 금지입니다.\nA동 1층으로 이동해서 작업하세요. 단, 반장 허락이 있으면 B동 출입 가능합니다."} />
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {draft && source === analyzedSource && (
-              <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(1)}>AI 노트로 →</button>
+              <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(1)}>이전 결과 보기 →</button>
             )}
             <button className="btn-primary" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
-              {busy === "analyze" ? <><Loading size={22} tone="light" />AI 노트를 만드는 중</> : draft ? "AI 노트 다시 생성" : "AI 노트 생성"}
+              {busy === "analyze" ? <><Loading size={22} tone="light" />정리하는 중</> : draft ? "다시 정리하기" : "다음"}
             </button>
           </div>
         </section>
@@ -228,7 +229,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
               ? <mark key={i} onMouseEnter={() => setFocus(id)} onMouseLeave={() => setFocus("")}
                   className={"cursor-default rounded-md px-0.5 text-ink transition " + KIND_BG[kinds.get(id) ?? "action"]
                     + (focus === id ? " ring-2 ring-ink" : " opacity-80")}>
-                  {text}<sup className="ml-0.5 text-[10px] font-black">{id.slice(1)}</sup>
+                  {text}
                 </mark>
               : <span key={i}>{text}</span>)}
           </div>
@@ -236,9 +237,9 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
         {/* ---------- screen 2: AI note review ---------- */}
           <section className="card">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2>AI 노트</h2>
-              <span className="text-[13px] text-ink-2">체크한 조건을 묻는 질문을 만들고, 작업자 답변에서 확인해요</span>
+            <div className="mb-4 grid gap-1">
+              <h2>작업자에게 확인할 내용</h2>
+              <p className="text-[13px] text-ink-2">체크한 항목을 작업자에게 질문으로 물어봐요.</p>
             </div>
             <label className="grid gap-1.5 text-sm font-bold">공지 제목
               <span className="flex items-center gap-2">
@@ -251,49 +252,44 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
               {draft.conditions.map(c => (
                 <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus("")}
                   className={"grid gap-2 rounded-bubble bg-white p-3.5 transition " + (focus === c.id ? "ring-2 ring-ink" : "")}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={"grid size-6 place-items-center rounded-full text-xs font-black " + KIND_BG[c.kind]}>{c.id.slice(1)}</span>
-                    <Select label="조건 종류" value={c.kind} options={KIND_OPTIONS} onChange={kind => updateCondition(c.id, { kind })} />
-                    <label className="inline-flex items-center gap-1.5 text-[13px] font-bold">
+                  <div className="flex items-center gap-2">
+                    <Select label="종류" value={c.kind} options={KIND_OPTIONS} onChange={kind => updateCondition(c.id, { kind })} />
+                    <label className="inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-bold">
                       <input type="checkbox" checked={c.check} onChange={e => updateCondition(c.id, { check: e.target.checked })} />
-                      답변에서 확인
+                      질문으로 확인
                     </label>
-                    <button type="button" className="btn-text ml-auto text-[13px] !text-stop" aria-label={`조건 ${c.id.slice(1)} 삭제`}
+                    <span className="flex-1" />
+                    <button type="button" className="btn-text text-[13px] !text-ink-3 hover:!text-stop" aria-label={`${c.id.slice(1)}번 삭제`}
                       disabled={draft.conditions.length === 1}
                       onClick={() => updateDraft({ conditions: draft.conditions.filter(x => x.id !== c.id) })}>삭제</button>
                   </div>
-                  <input className="font-semibold" aria-label="조건 문장" value={c.label} placeholder="조건을 한 문장으로"
+                  <input className="font-semibold" aria-label="내용" value={c.label} placeholder="한 문장으로"
                     onChange={e => updateCondition(c.id, { label: e.target.value })} />
-                  <p className="text-[13px] text-ink-2">{c.evidence ? <>근거 <q className="rounded-md bg-paper px-1 text-ink">{c.evidence}</q></> : <em>관리자가 직접 추가한 조건</em>}</p>
                 </li>
               ))}
             </ul>
-            <button type="button" className="btn-text" onClick={addCondition}>+ 조건 직접 추가</button>
+            <button type="button" className="btn-text" onClick={addCondition}>+ 항목 추가</button>
 
-            <div className="mt-5 grid gap-3 rounded-bubble bg-white p-3.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-bold">질문 유형</span>
-                <Segmented label="질문 유형" value={questionKind} onChange={setQuestionKind}
-                  options={TYPE_ORDER.map(value => ({ value, label: QUESTION_TYPES[value] }))} />
+            <div className="mt-5 grid justify-items-center gap-2">
+              {checked.length ? (
+                <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-bold">
+                  <span>체크한 {checked.length}개로</span>
+                  <Segmented label="질문 유형" value={questionKind} onChange={setQuestionKind}
+                    options={TYPE_ORDER.map(value => ({ value, label: QUESTION_TYPES[value] }))} />
+                  <span>질문</span>
+                  <Segmented label="질문 개수" value={questionCount} onChange={setChosenCount}
+                    options={COUNTS.map(value => ({ value, label: String(value) }))} />
+                  <span>개</span>
+                </div>
+              ) : <p className="text-[13px] text-ink-2">질문으로 확인할 항목을 하나 이상 체크해 주세요.</p>}
+              <div className="flex flex-wrap justify-center gap-2">
+                {preview && (
+                  <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(2)}>이전 질문 보기 →</button>
+                )}
+                <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makeQuestion}>
+                  {busy === "preview" ? <><Loading size={22} tone="light" />질문 만드는 중</> : preview ? "질문 다시 만들기" : "질문 만들기"}
+                </button>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-bold">질문 개수</span>
-                <Segmented label="질문 개수" value={questionCount} onChange={setChosenCount}
-                  options={COUNTS.map(value => ({ value, label: String(value) }))} />
-              </div>
-              <p className="text-[13px] text-ink-2">
-                {questionKind === "short" ? "단답형은 정답이 있는 짧은 질문이에요. 정답은 다음 화면에서 고칠 수 있어요."
-                  : "주관식은 무엇을 할지 직접 설명하게 하는 질문이에요."} 체크한 조건 {checked.length}개를 질문 {questionCount}개에 나눠 물어요.
-              </p>
-            </div>
-
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {preview && (
-                <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(2)}>작업자 화면 검수로 →</button>
-              )}
-              <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makeQuestion}>
-                {busy === "preview" ? <><Loading size={22} tone="light" />질문을 만드는 중</> : preview ? "질문 다시 생성하기" : "질문 생성하기"}
-              </button>
             </div>
           </section>
       </div>
@@ -304,7 +300,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
       {screen === 2 && preview && translation && draft && (
         <section className="card">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <h2>작업자 화면 검수</h2>
+            <h2>작업자가 보는 화면</h2>
             <div className="flex gap-1.5 rounded-full bg-white p-1" role="tablist" aria-label="미리보기 언어">
               {WORKER_LANGS.map(lang => {
                 const bad = preview.translations[lang].checks.some(c => !c.preserved);
@@ -333,10 +329,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
             </div>
             <div className="min-w-0">
               <div className="grid gap-3 rounded-bubble bg-ink p-5 text-paper">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="text-sm font-bold text-ink-3">작업자에게 차례로 물을 질문</h3>
-                  <span className="text-[13px] text-ink-3">{draft.questions.length}/{MAX_QUESTIONS}</span>
-                </div>
+                <h3 className="text-sm font-bold text-ink-3">질문 (순서대로 물어봐요)</h3>
                 <ol className="grid gap-3">
                   {draft.questions.map((q, i) => (
                     <li key={q.id} className="grid gap-2.5 rounded-2xl bg-white/5 p-3.5">
@@ -356,7 +349,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                         </label>
                       )}
                       <div className="grid gap-1.5">
-                        <span className="text-[13px] font-bold text-ink-3">이 질문으로 확인할 조건</span>
+                        <span className="text-[13px] font-bold text-ink-3">확인할 항목</span>
                         <div className="flex flex-wrap gap-1.5">
                           {checked.map(c => {
                             const on = q.conditionIds.includes(c.id);
@@ -373,19 +366,18 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                       </div>
                       {!questionReady(q) && (
                         <p className="text-[13px] text-except">
-                          {!q.text.trim() ? "질문을 입력해 주세요." : !q.conditionIds.length ? "확인할 조건을 하나 이상 골라 주세요." : "정답을 입력해 주세요."}
+                          {!q.text.trim() ? "질문을 입력해 주세요." : !q.conditionIds.length ? "확인할 항목을 하나 이상 골라 주세요." : "정답을 입력해 주세요."}
                         </p>
                       )}
-                      {q.reason && <p className="text-[13px] text-ink-3">{q.reason}</p>}
                     </li>
                   ))}
                 </ol>
                 {draft.questions.length < MAX_QUESTIONS && (
-                  <button type="button" className="btn-text justify-self-start !text-paper" onClick={addQuestion}>+ 질문 직접 추가</button>
+                  <button type="button" className="btn-text justify-self-start !text-paper" onClick={addQuestion}>+ 질문 추가</button>
                 )}
                 {questionChanged && (
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-[13px] text-except">질문을 바꿨어요. 미리보기에 반영해야 발행할 수 있어요.</p>
+                    <p className="text-[13px] text-except">질문을 바꿨어요. 반영해야 보낼 수 있어요.</p>
                     <button className="btn-secondary !py-2 text-sm" aria-busy={busy === "preview"}
                       disabled={Boolean(busy) || !questionsReady} onClick={makePreview}>
                       {busy === "preview" ? <><Loading size={20} />반영하는 중</> : "미리보기에 반영"}
@@ -413,7 +405,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                   </div>
                 )}
                 <button className="btn-primary !px-6 !py-4 text-base" aria-busy={busy === "publish"} disabled={Boolean(busy) || questionChanged || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
-                  {busy === "publish" ? <><Loading size={22} tone="light" />전송하는 중</> : "작업자에게 전송하기"}
+                  {busy === "publish" ? <><Loading size={22} tone="light" />보내는 중</> : "작업자에게 보내기"}
                 </button>
               </div>
             </div>

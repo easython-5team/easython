@@ -1,9 +1,8 @@
 "use client";
 
 import QRCode from "qrcode";
-import { Fragment, useEffect, useId, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { CONDITION_KINDS, isLang, LANGUAGES } from "../../shared/languages.ts";
-import { QUESTION_TYPES } from "../../shared/questions.ts";
 import type { CheckStatus, Condition, DashboardView, DashboardWorker, Question, TurnState, WorkerStatus } from "../../shared/types.ts";
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
@@ -51,7 +50,8 @@ function QrPanel({ id, baseUrl }: { id: string; baseUrl: string }) {
       <div className="mx-auto aspect-square w-[210px] max-w-full rounded-bubble bg-white p-3 [&_svg]:block [&_svg]:size-full"
         aria-label="작업자 접속 QR 코드" dangerouslySetInnerHTML={{ __html: svg }} />
       <div className="grid min-w-0 justify-items-center gap-2.5 text-center">
-        <h2>현장 QR · 공유 링크</h2>
+        <h2>작업자 접속 QR</h2>
+        <p className="text-[13px] text-ink-2">휴대폰으로 찍거나 링크를 보내 주세요.</p>
         <button className="btn-primary" onClick={copy} aria-live="polite">{copied ? "복사했어요" : "링크 복사"}</button>
       </div>
     </section>
@@ -69,8 +69,11 @@ function WorkerRow({ worker, conditions, questions, open, toggle }: {
   return (
     <>
       <tr className={"border-b border-canvas align-middle " + (open ? "bg-paper" : "")}>
-        <td className="px-2 py-3 text-center"><button type="button" className="cursor-pointer font-bold underline underline-offset-4" aria-expanded={open} onClick={toggle}>{worker.name}</button></td>
-        <td className="px-2 py-3 text-center"><span className="tag bg-canvas">{languageName(worker.lang)}</span></td>
+        <td className="px-2 py-3 text-center whitespace-nowrap">
+          <button type="button" className="cursor-pointer font-bold underline-offset-4 hover:underline" aria-expanded={open} onClick={toggle}>
+            {worker.name} <span className="text-xs font-semibold text-ink-3">{languageName(worker.lang)}</span> <span aria-hidden="true" className="text-ink-3">{open ? "▴" : "▾"}</span>
+          </button>
+        </td>
         <td className="px-2 py-3 text-center">
           <span className={"tag m-0.5 " + TONE_BG[status.tone]}>{status.label}</span>
           {worker.waiting && <span className={"tag m-0.5 " + TONE_BG.wait}>관리자 답변 대기</span>}
@@ -88,11 +91,11 @@ function WorkerRow({ worker, conditions, questions, open, toggle }: {
       </tr>
       {open && (
         <tr className="border-b border-canvas bg-paper">
-          <td colSpan={5} className="px-2 py-4 text-left">
+          <td colSpan={4} className="px-2 py-4 text-left">
             <ol className="grid gap-3">
               {worker.turns.map(turn => (
                 <li key={turn.turn} className="grid gap-1 border-l-[3px] border-ink pl-3">
-                  <div className="flex items-baseline gap-2.5">{questions.length > 1 && <span className="tag bg-ink text-paper">Q{number(turn.questionId)}</span>}<span className="text-[13px] font-black">{TURN_STATE[turn.state]}</span><span className="text-[13px] text-ink-2">v{turn.version} · {turn.mode === "voice" ? "음성" : "텍스트"}</span></div>
+                  <div className="flex items-baseline gap-2.5">{questions.length > 1 && <span className="tag bg-ink text-paper">Q{number(turn.questionId)}</span>}<span className="text-[13px] font-black">{TURN_STATE[turn.state]}</span><span className="text-[13px] text-ink-2">v{turn.version}{turn.mode === "voice" && " · 음성"}</span></div>
                   <p lang={worker.lang}>{turn.answer}</p>
                   <p className="text-ink-2">→ {turn.inputKo}</p>
                   {turn.state !== "answered" && turn.state !== "manager" && (
@@ -102,7 +105,7 @@ function WorkerRow({ worker, conditions, questions, open, toggle }: {
                           <span className={"tag " + CHECK_BG[a.status]}>{CHECK_ICON[a.status]} {a.id.slice(1)}</span>
                           {conditions.find(c => c.id === a.id)?.label}
                           {a.quote && <q className="rounded-md bg-white px-1.5" lang={worker.lang}>{a.quote}</q>}
-                          {a.rejected && <em className="text-xs text-stop">AI가 ‘{CHECK[a.rejected]}’으로 판정했지만 작업자 발화에서 인용 근거를 찾지 못해 누락으로 처리</em>}
+                          {a.rejected && <em className="text-xs text-stop">AI는 ‘{CHECK[a.rejected]}’이라 했지만 답변에 근거가 없어 누락 처리</em>}
                         </li>
                       ))}
                     </ul>
@@ -122,8 +125,6 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
   const [data, setData] = useState<DashboardView | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState("");
-  const [showExample, setShowExample] = useState(false);
-  const exampleId = useId();
 
   // Poll so new worker answers appear without a reload.
   useEffect(() => {
@@ -150,15 +151,11 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
     { label: "이해 완료", value: stats.understood, dot: "bg-action" },
     { label: "재확인 필요", value: stats.recheck, dot: "bg-stop" },
   ];
-  const conditionById = new Map(notice.draft.conditions.map(c => [c.id, c]));
 
   return (
     <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="grid gap-1">
-          <p className="eyebrow">발행된 공지 · v{notice.version}</p>
-          <h1>{notice.draft.title}</h1>
-        </div>
+        <h1>{notice.draft.title}</h1>
         <a className="btn-secondary" href="/">새 공지 작성</a>
       </div>
 
@@ -174,12 +171,12 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
       </section>
 
         <section className="card">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2>작업자별 이해 현황</h2><span className="text-[13px] text-ink-2">이름을 누르면 판정 근거를 볼 수 있어요</span></div>
-          {workers.length === 0 ? <p className="text-ink-2">아직 접속한 작업자가 없어요. QR을 공유해 주세요.</p> : (
+          <h2 className="mb-4">작업자</h2>
+          {workers.length === 0 ? <p className="text-ink-2">아직 접속한 작업자가 없어요.</p> : (
             <div className="overflow-x-auto rounded-bubble bg-white px-3">
               <table className="w-full border-collapse text-sm">
                 <thead><tr className="border-b border-grid text-center text-xs whitespace-nowrap text-ink-2">
-                  <th className="px-2 py-2.5">작업자</th><th className="px-2 py-2.5">언어</th><th className="px-2 py-2.5">상태</th><th className="px-2 py-2.5">확인 조건</th><th className="px-2 py-2.5">최근 답변 (한국어)</th>
+                  <th className="px-2 py-2.5">이름</th><th className="px-2 py-2.5">상태</th><th className="px-2 py-2.5">확인 항목</th><th className="px-2 py-2.5">최근 답변</th>
                 </tr></thead>
                 <tbody>
                   {workers.map(w => (
@@ -193,47 +190,27 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
           )}
         </section>
 
-      <section className="card grid gap-6">
-        <div>
-        <h2>공지 내용</h2>
+      <details className="card">
+        <summary className="cursor-pointer text-[17px] font-black tracking-[-0.03em]">보낸 공지와 질문</summary>
         <p className="mt-4 rounded-2xl bg-white px-4 py-3 whitespace-pre-wrap">{notice.source}</p>
-        </div>
-        <div className="grid gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2>질문 내용</h2>
-            <button type="button" aria-expanded={showExample} aria-controls={exampleId} className="btn-text text-[13px]"
-              onClick={() => setShowExample(!showExample)}>{showExample ? "예시 답안 닫기" : "예시 답안 보기"}</button>
-          </div>
-          <ol id={exampleId} className="grid gap-2">
-            {notice.draft.questions.map((q, i) => (
-              <li key={q.id} className="rounded-2xl bg-white">
-                <div className="flex items-start gap-2.5 px-4 py-3">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink text-xs font-black text-paper">{i + 1}</span>
-                  <p className="font-semibold">{q.text}</p>
-                  <span className="tag ml-auto shrink-0 bg-canvas">{QUESTION_TYPES[q.type]}</span>
-                </div>
-                {showExample && (
-                  <div className="grid gap-2 border-t border-canvas px-4 py-3">
-                    {q.type === "short" ? <>
-                      <p className="eyebrow">정답</p>
-                      <p className="text-[15px] font-semibold">{q.answer}</p>
-                    </> : <>
-                      <p className="eyebrow">예시 답안 · 작업자 답에 들어가야 할 내용</p>
-                      <ul className="grid gap-1.5">
-                        {q.conditionIds.map(id => conditionById.get(id)).filter(c => c !== undefined).map(c => (
-                          <li key={c.id} className="flex items-start gap-2 text-[15px]">
-                            <span className={"tag mt-0.5 " + KIND_BG[c.kind]}>{CONDITION_KINDS[c.kind]}</span>{c.label}
-                          </li>
-                        ))}
-                      </ul>
-                    </>}
-                  </div>
+        <ol className="mt-3 grid gap-2">
+          {notice.draft.questions.map((q, i) => (
+            <li key={q.id} className="flex items-start gap-2.5 rounded-2xl bg-white px-4 py-3">
+              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink text-xs font-black text-paper">{i + 1}</span>
+              <div className="grid gap-1.5">
+                <p className="font-semibold">{q.text}</p>
+                {q.type === "short" ? <p className="text-[13px] text-ink-2">정답: {q.answer}</p> : (
+                  <p className="flex flex-wrap items-center gap-1.5 text-[13px] text-ink-2">답에 들어가야 할 내용
+                    {q.conditionIds.map(id => notice.draft.conditions.find(c => c.id === id)).filter(c => c !== undefined).map(c => (
+                      <span key={c.id} className={"tag " + KIND_BG[c.kind]} title={c.label}>{CONDITION_KINDS[c.kind]} · {c.label}</span>
+                    ))}
+                  </p>
                 )}
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </details>
       {error && <FloatingError message={error} onClose={() => setError("")} />}
     </main>
   );

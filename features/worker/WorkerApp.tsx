@@ -266,7 +266,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
             {allUnderstood ? "✓" : "!"}
           </span>
           <p className="text-xl leading-snug font-black tracking-[-0.03em] text-balance">
-            {allUnderstood ? t.doneUnderstood : t.doneGuidance}
+            {allUnderstood ? t.allDone : t.doneGuidance}
           </p>
         </div>
       ) : (
@@ -274,7 +274,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
           <label htmlFor="answer" className="text-[17px] font-black tracking-[-0.03em]">
             {latest === "followup" ? t.states.followup : results.size > 0 && !latest ? t.nextQuestion : t.yourAnswer}
           </label>
-          <p className="text-[13px] text-ink-2">{open?.type === "short" ? t.shortHint : t.answerHint}</p>
+          {open?.type === "short" && <p className="text-[13px] text-ink-2">{t.shortHint}</p>}
           <textarea id="answer" rows={3} value={recognition.listening ? recognition.interim || answer : answer}
             placeholder={t.placeholder} disabled={busy || recognition.listening} className="!bg-paper text-[17px]"
             onChange={e => { setAnswer(e.target.value); if (!e.target.value) setMode("text"); }} />
