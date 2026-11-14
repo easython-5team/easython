@@ -15,7 +15,7 @@ import { slideTo } from "../../ui/slide.ts";
 
 const networkError = "요청을 완료하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.";
 const PLACEHOLDER = "예) 내일 오전 8시부터 B동 2층 도장 라인 사용 금지. A동 1층으로 이동해서 작업. 단, 반장 허락 시 B동 출입 가능.";
-const DEFAULT_QUIZ = 3;
+const DEFAULT_QUIZ = 1;
 const STEPS = 3;
 
 function nextId(prefix: string, ids: string[]): string {
