@@ -28,6 +28,16 @@ function kindOf(sentence: string): ConditionKind {
   return "action";
 }
 
+// "<place or equipment> <what changes>", like the real AI's titles.
+function mockTitle(sentence: string): string {
+  const body = sentence.replace(/^.*?부터\s+/, "").replace(/^\d+\s*(일|주|개월)\s*동안\s+/, "").replace(/[.!?]$/, "");
+  const entry = /(\S+)\s*출입이?\s*금지/.exec(body);
+  if (entry) return `${entry[1]} 출입 금지`;
+  const subject = (/^(.+?)(?:은|는|이|가)\s/.exec(body)?.[1] ?? body).trim().slice(0, 16).trim();
+  const change = /금지|하지 마|사용하지/.test(body) ? "사용 중지" : /이동/.test(body) ? "장소 변경" : "변경";
+  return subject + " " + change;
+}
+
 export async function analyzeNotice(source: string): Promise<Draft> {
   const bracket = /\[([^\]]+)\]/.exec(source)?.[1]?.trim();
   const parts = sentences(source).slice(0, 6);
@@ -37,7 +47,7 @@ export async function analyzeNotice(source: string): Promise<Draft> {
   const firstProhibition = conditions.find(c => c.kind === "prohibition") ?? conditions[0];
   if (firstProhibition) firstProhibition.check = true;
   return {
-    title: datedTitle(bracket ?? (parts[0] ?? source).slice(0, 20)),
+    title: datedTitle(bracket ?? mockTitle(parts[0] ?? source)),
     conditions,
     questions: [],
   };

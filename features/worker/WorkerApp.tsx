@@ -116,7 +116,7 @@ export default function WorkerApp({ id }: { id: string }) {
           onChange={e => setName(e.target.value)} />
       </label>
       {error && <p role="alert" className="rounded-[10px] bg-bad-bg px-4 py-3 text-sm font-semibold text-bad-fg">{error}</p>}
-      <button className="btn-primary w-full !py-4 text-[17px]" aria-busy={busy} disabled={busy || !name.trim()}>{busy ? <><Loading size={24} tone="light" />{t.starting}</> : t.start}</button>
+      <button className="btn-primary w-full !py-3 text-[16px]" aria-busy={busy} disabled={busy || !name.trim()}>{busy ? <><Loading size={24} tone="light" />{t.starting}</> : t.start}</button>
     </form>
   );
 }
@@ -139,6 +139,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   // One job per screen: read the notice first, then answer. A returning worker
   // who already answered goes straight back to the conversation.
   const [step, setStep] = useState<"read" | "answer">(view.turns.length ? "answer" : "read");
+  const [slide, setSlide] = useState("");
   const running = useRef(false);
   const bottom = useRef<HTMLDivElement>(null);
   const recognition = useRecognition(lang, text => {
@@ -193,7 +194,9 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   useEffect(() => {
     const onPop = (event: PopStateEvent) => {
       recognition.stop();
-      setStep((event.state as { w?: unknown } | null)?.w === "answer" ? "answer" : "read");
+      const next = (event.state as { w?: unknown } | null)?.w === "answer" ? "answer" : "read";
+      setSlide(next === "read" ? "slide-back" : "slide-forward");
+      setStep(next);
       window.scrollTo({ top: 0 });
     };
     window.addEventListener("popstate", onPop);
@@ -203,11 +206,13 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     recognition.stop();
     if (next === "answer") {
       history.pushState({ ...history.state, w: "answer" }, "");
+      setSlide("slide-forward");
       setStep("answer");
     } else if ((history.state as { w?: unknown } | null)?.w === "answer") {
       history.back();
       return;
     } else {
+      setSlide("slide-back");
       setStep("read");
     }
     window.scrollTo({ top: 0 });
@@ -228,11 +233,11 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
 
   if (step === "read") {
     return (
-      <div className="grid gap-4" lang={lang}>
+      <div key="read" className={"grid gap-4 " + slide} lang={lang}>
         {progress}
         <NoticeView notice={view.notice} t={t} showQuestion={false} />
         <div className="sticky bottom-3 pt-2">
-          <button type="button" className="btn-primary w-full !py-4 text-[17px]" onClick={() => go("answer")}>
+          <button type="button" className="btn-primary w-full !py-3 text-[16px]" onClick={() => go("answer")}>
             {t.readDone}
           </button>
         </div>
@@ -245,7 +250,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     : recognition.error === "unsupported" ? t.speechUnsupported : t.speechFailed;
 
   return (
-    <div className="grid gap-4" lang={lang}>
+    <div key="answer" className={"grid gap-4 " + slide} lang={lang}>
       {progress}
       <button type="button" className="btn-text -ml-1 flex items-center gap-0.5 justify-self-start" onClick={() => go("read")}><Chevron />{t.backToNotice}</button>
       <div className="grid gap-5" aria-live="polite">

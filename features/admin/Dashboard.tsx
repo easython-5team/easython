@@ -7,6 +7,7 @@ import type { CheckStatus, DashboardEscalation, DashboardView, DashboardWorker, 
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import Chevron from "../../ui/Chevron";
+import QuizAnswer from "./QuizAnswer";
 import { post } from "../../ui/request";
 import { formatTime } from "../../shared/time.ts";
 import { CHECK_BG, TONE_BG, type Tone } from "../../ui/tone.ts";
@@ -114,8 +115,9 @@ function WorkerRow({ worker, notice, pending, id, open, toggle }: {
           {worker.turns.length === 0 && <p className="text-sm text-ink-3">아직 응답이 없습니다.</p>}
           {worker.turns.map(turn => (
             <div key={turn.turn} className="grid gap-1.5 border-l-2 border-grid pl-3 text-sm">
-              <p className="text-[13px] text-ink-3">Q{questionNo(turn.questionId)} · {TURN_STATE[turn.state]}{turn.mode === "voice" && " · 음성"}</p>
-              <p>{turn.inputKo}</p>
+              <p className="text-[13px] text-ink-3">Q{questionNo(turn.questionId)}. {notice.draft.questions.find(q => q.id === turn.questionId)?.text}</p>
+              <p><span className="mr-1.5 text-ink-3">답</span>{turn.inputKo}</p>
+              <p className="text-[13px] text-ink-3">{TURN_STATE[turn.state]}{turn.mode === "voice" && " · 음성"}</p>
               {turn.state !== "answered" && turn.state !== "manager" && turn.assessment.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {turn.assessment.map(a => (
@@ -214,7 +216,14 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
           </div>
           <div className="grid gap-1">
             <p className="text-[13px] text-ink-3">확인 퀴즈</p>
-            <ol className="grid list-decimal gap-1 pl-5">{notice.draft.questions.map(q => <li key={q.id}>{q.text}</li>)}</ol>
+            <ol className="grid gap-3">
+              {notice.draft.questions.map((q, i) => (
+                <li key={q.id} className="grid gap-0.5">
+                  <p><span className="mr-1.5 font-semibold text-ink-2">Q{i + 1}</span>{q.text}</p>
+                  <QuizAnswer question={q} conditions={notice.draft.conditions} />
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       </details>

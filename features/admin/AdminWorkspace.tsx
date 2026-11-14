@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang } from "../../shared/languages.ts";
 import { MAX_QUESTIONS } from "../../shared/questions.ts";
 import type { Condition, Draft, PreviewResult, Question } from "../../shared/types.ts";
@@ -10,6 +10,7 @@ import { post } from "../../ui/request";
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import Chevron from "../../ui/Chevron";
+import QuizAnswer from "./QuizAnswer";
 import { datedTitle, splitTitle } from "../../shared/title.ts";
 
 // A new notice in four screens, one job each: write, check the items,
@@ -26,11 +27,11 @@ function nextId(prefix: string, ids: string[]): string {
 
 // Every step has the same frame: back at top-left, step count at top-right,
 // one title, the content, and the main button full-width at the bottom.
-function Step({ index, title, onBack, children, action }: {
-  index: number; title: string; onBack?: () => void; children: ReactNode; action: ReactNode;
+function Step({ index, title, onBack, dir, children, action }: {
+  index: number; title: string; onBack?: () => void; dir: "forward" | "back"; children: ReactNode; action: ReactNode;
 }) {
   return (
-    <main className="mx-auto grid w-full max-w-[640px] gap-6 px-4 pt-5 pb-28 sm:px-6">
+    <main key={index} className={"mx-auto grid w-full max-w-[640px] gap-6 px-4 pt-5 pb-28 sm:px-6 " + (dir === "back" ? "slide-back" : "slide-forward")}>
       <div className="flex h-9 items-center justify-between">
         {onBack ? (
           <button type="button" onClick={onBack} className="-ml-2 flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[15px] font-semibold text-ink-2 hover:bg-paper hover:text-ink">
@@ -41,7 +42,7 @@ function Step({ index, title, onBack, children, action }: {
       </div>
       <h1 className="-mt-3">{title}</h1>
       {children}
-      <div className="sticky bottom-0 -mx-4 border-t border-grid bg-canvas/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-0 -mx-4 flex justify-center border-t border-grid bg-canvas/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         {action}
       </div>
     </main>
@@ -58,6 +59,8 @@ function RemoveButton({ label, disabled, onClick }: { label: string; disabled: b
 export default function AdminWorkspace() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [dir, setDir] = useState<"forward" | "back">("forward");
+  const current = useRef(1);
   const [source, setSource] = useState("");
   const [analyzedSource, setAnalyzedSource] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -85,7 +88,10 @@ export default function AdminWorkspace() {
     history.replaceState({ ...history.state, step: 1 }, "");
     const onPop = (event: PopStateEvent) => {
       const state = event.state as { step?: unknown } | null;
-      setStep(typeof state?.step === "number" ? state.step : 1);
+      const next = typeof state?.step === "number" ? state.step : 1;
+      setDir(next < current.current ? "back" : "forward");
+      current.current = next;
+      setStep(next);
       window.scrollTo({ top: 0 });
     };
     window.addEventListener("popstate", onPop);
@@ -93,6 +99,8 @@ export default function AdminWorkspace() {
   }, []);
   function go(next: number) {
     history.pushState({ ...history.state, step: next }, "");
+    setDir("forward");
+    current.current = next;
     setStep(next);
     window.scrollTo({ top: 0 });
   }
@@ -177,9 +185,9 @@ export default function AdminWorkspace() {
   /* ---------- 1. write ---------- */
   if (step === 1 || !draft) {
     return (
-      <Step index={1} title="바뀐 작업 내용을 입력하세요" onBack={() => { window.location.href = "/"; }}
+      <Step dir={dir} index={1} title="바뀐 작업 내용을 입력하세요" onBack={() => { window.location.href = "/"; }}
         action={
-          <button className="btn-primary w-full !py-3.5" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
+          <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
             {busy === "analyze" ? <><Loading size={20} tone="light" />분석 중</> : "다음"}
           </button>
         }>
@@ -197,9 +205,9 @@ export default function AdminWorkspace() {
   /* ---------- 2. items ---------- */
   if (step === 2) {
     return (
-      <Step index={2} title="작업자에게 전달할 내용" onBack={back}
+      <Step dir={dir} index={2} title="작업자에게 전달할 내용" onBack={back}
         action={
-          <button className="btn-primary w-full !py-3.5" aria-busy={busy === "quiz"} disabled={Boolean(busy) || !itemsReady} onClick={makeQuiz}>
+          <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "quiz"} disabled={Boolean(busy) || !itemsReady} onClick={makeQuiz}>
             {busy === "quiz" ? <><Loading size={20} tone="light" />퀴즈 생성 중</> : quizCurrent ? "다음" : "AI 퀴즈 생성하기"}
           </button>
         }>
@@ -229,9 +237,9 @@ export default function AdminWorkspace() {
   /* ---------- 3. quiz ---------- */
   if (step === 3 || !preview) {
     return (
-      <Step index={3} title="확인 퀴즈" onBack={back}
+      <Step dir={dir} index={3} title="확인 퀴즈" onBack={back}
         action={
-          <button className="btn-primary w-full !py-3.5" aria-busy={busy === "preview"} disabled={Boolean(busy) || !quizReady} onClick={translate}>
+          <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "preview"} disabled={Boolean(busy) || !quizReady} onClick={translate}>
             {busy === "preview" ? <><Loading size={20} tone="light" />번역 중</> : "다음"}
           </button>
         }>
@@ -244,9 +252,9 @@ export default function AdminWorkspace() {
                 <RemoveButton label={`퀴즈 ${i + 1} 삭제`} disabled={draft.questions.length === 1}
                   onClick={() => edit(d => ({ ...d, questions: d.questions.filter(x => x.id !== q.id) }))} />
               </div>
-              {q.type === "short" && (
+              {q.type === "short" ? (
                 <input aria-label={`퀴즈 ${i + 1} 정답`} placeholder="정답" value={q.answer} onChange={e => setQuestion(q.id, { answer: e.target.value })} />
-              )}
+              ) : <QuizAnswer question={q} conditions={draft.conditions} />}
             </div>
           ))}
           {draft.questions.length < MAX_QUESTIONS && (
@@ -265,9 +273,9 @@ export default function AdminWorkspace() {
   const mismatch = WORKER_LANGS.flatMap(lang => preview.translations[lang].checks.filter(c => !c.preserved).map(c => ({ ...c, lang })));
 
   return (
-    <Step index={4} title="작업자 화면 미리보기" onBack={back}
+    <Step dir={dir} index={4} title="작업자 화면 미리보기" onBack={back}
       action={
-        <button className="btn-primary w-full !py-3.5" aria-busy={busy === "publish"}
+        <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "publish"}
           disabled={Boolean(busy) || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
           {busy === "publish" ? <><Loading size={20} tone="light" />발송 중</> : "작업자에게 발송"}
         </button>

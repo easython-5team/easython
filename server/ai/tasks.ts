@@ -119,7 +119,7 @@ export function validateAnalysis(raw: unknown, source: string): Draft {
 export async function analyzeNotice(source: string): Promise<Draft> {
   const raw = await requestObject("notice_analysis", analysisSchema,
     `Write every field in Korean. The source is a manager's notice that CHANGES how work is normally done.
-1. title: a short Korean summary of what changes, about 10–20 characters, naming when and what work (e.g. "이번 주 목요일 외벽 도장 작업"). No date digits or brackets; the server adds the date.
+1. title: a short Korean noun phrase, 8–20 characters, in the form "<place or equipment> <what changes>" (e.g. "B동 2층 도장 라인 사용 중지", "3번 지게차 사용 중지", "야간조 출근 시간 변경"). No sentence endings, no date digits or brackets; the server adds the date.
 2. conditions: split the notice into atomic conditions a worker must follow — kind is one of time (when it applies), place (where), action (what to do), prohibition (what NOT to do, including "do not tidy up"), exception (special cases).
    label: one short Korean sentence stating the condition plainly. evidence: an exact substring of source that supports it, without added quotation marks.
    check: true only for the 1–3 conditions the worker must prove they understood in their own answer — prefer the condition that breaks a habit (what is different from usual).
