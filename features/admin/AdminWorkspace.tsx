@@ -14,7 +14,12 @@ import { KIND_BG } from "../../ui/tone.ts";
 import { datedTitle, splitTitle } from "../../shared/title.ts";
 
 const networkError = "요청을 완료하지 못했어요. 연결을 확인한 뒤 다시 시도하세요.";
-const STEPS = ["공지 쓰기", "확인할 내용", "질문 · 미리보기", "전송"];
+const STEPS = ["지시 쓰기", "내용 확인", "미리보기", "보내기"];
+const EXAMPLE = "내일 오전 8시부터 B동 2층 도장 라인은 환기 설비 점검으로 사용 금지입니다.\n해당 작업자는 A동 1층으로 이동해서 작업하세요.\n단, 반장 허락이 있으면 B동 출입 가능합니다.";
+const TYPE_HELP: Record<QuestionType, string> = {
+  open: "작업자가 무엇을 할지 자기 말로 설명해요.",
+  short: "정답이 있는 짧은 질문이에요. 정답은 다음 화면에서 적어요.",
+};
 const KIND_OPTIONS: SelectOption<ConditionKind>[] = (Object.entries(CONDITION_KINDS) as Array<[ConditionKind, string]>)
   .map(([value, label]) => ({ value, label, swatch: KIND_BG[value].split(" ")[0] }));
 const TYPE_ORDER: QuestionType[] = ["open", "short"];
@@ -178,7 +183,10 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
   return (
     <main className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 pt-4 pb-20 sm:px-6" aria-busy={Boolean(busy)}>
       <header className="grid gap-5 pt-2 pb-1">
-        <h1>안녕하세요, 관리자님<br />좋은 하루에요.</h1>
+        <div className="grid gap-2">
+          <h1>안녕하세요, 관리자님<br />좋은 하루에요.</h1>
+          {screen === 0 && <p className="text-[15px] text-ink-2">바뀐 작업 지시를 적으면, 외국인 작업자가 자기 언어로 읽고 제대로 이해했는지 확인해 드려요.</p>}
+        </div>
         <ol className="grid w-full grid-cols-4 gap-2" aria-label="진행 단계">
           {STEPS.map((label, i) => {
             const open = i <= step && i < 3;
@@ -202,97 +210,115 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
       {/* ---------- screen 1: the manager's text ---------- */}
       {screen === 0 && (
         <section className="card max-w-[760px]">
-          <h2 className="mb-4"><label htmlFor="source">무엇이 바뀌나요?</label></h2>
+          <div className="mb-4 grid gap-1">
+            <h2><label htmlFor="source">작업자에게 알릴 변경 사항</label></h2>
+            <p className="text-[13px] text-ink-2">언제 · 어디서 · 무엇이 평소와 달라지는지 평소 말투로 적어 주세요.</p>
+          </div>
           <textarea id="source" rows={11} value={source} disabled={Boolean(busy)} onChange={e => setSource(e.target.value)}
             className="min-h-[270px] text-[16px] leading-relaxed"
             placeholder={"예) 내일 오전 8시부터 B동 2층 도장 라인은 사용 금지입니다.\nA동 1층으로 이동해서 작업하세요. 단, 반장 허락이 있으면 B동 출입 가능합니다."} />
           <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {!source.trim() && (
+              <button type="button" className="btn-secondary" onClick={() => setSource(EXAMPLE)}>예시 넣어보기</button>
+            )}
             {draft && source === analyzedSource && (
               <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(1)}>이전 결과 보기 →</button>
             )}
             <button className="btn-primary" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
-              {busy === "analyze" ? <><Loading size={22} tone="light" />정리하는 중</> : draft ? "다시 정리하기" : "다음"}
+              {busy === "analyze" ? <><Loading size={22} tone="light" />AI가 정리하는 중</> : draft ? "AI로 다시 정리하기" : "AI로 정리하기 →"}
             </button>
           </div>
         </section>
       )}
 
       {screen === 1 && draft && (
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-        <section className="card">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2>작업 변경 사항</h2>
-            <button type="button" className="btn-text" disabled={Boolean(busy)} onClick={() => go(0)}>원문 수정</button>
-          </div>
-          <div className="rounded-bubble bg-white p-4 text-[16px] leading-loose whitespace-pre-wrap" aria-label="작업 변경 사항과 AI가 찾은 근거">
-            {marks.map(({ text, id }, i) => id
-              ? <mark key={i} onMouseEnter={() => setFocus(id)} onMouseLeave={() => setFocus("")}
-                  className={"cursor-default rounded-md px-0.5 text-ink transition " + KIND_BG[kinds.get(id) ?? "action"]
-                    + (focus === id ? " ring-2 ring-ink" : " opacity-80")}>
-                  {text}
-                </mark>
-              : <span key={i}>{text}</span>)}
-          </div>
-        </section>
-
-        {/* ---------- screen 2: AI note review ---------- */}
-          <section className="card">
-            <div className="mb-4 grid gap-1">
-              <h2>작업자에게 확인할 내용</h2>
-              <p className="text-[13px] text-ink-2">체크한 항목을 작업자에게 질문으로 물어봐요.</p>
+        <section className="card max-w-[860px]">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="grid gap-1">
+              <h2>AI가 이렇게 정리했어요</h2>
+              <p className="text-[13px] text-ink-2">틀린 곳은 바로 고치세요. 작업자가 <b className="text-ink">꼭 이해해야 하는 항목</b>에 체크하면 그 내용을 질문으로 물어봐요.</p>
             </div>
-            <label className="grid gap-1.5 text-sm font-bold">공지 제목
-              <span className="flex items-center gap-2">
-                <span className="shrink-0 rounded-md bg-white px-2.5 py-2 font-mono text-[15px]" title="작성일(YYMMDD)">[{title.date}]</span>
-                <input className="min-w-0 flex-1" value={title.summary} placeholder="작업 내용 요약"
-                  onChange={e => updateDraft({ title: datedTitle(e.target.value, title.date) })} />
-              </span>
-            </label>
-            <ul className="mt-4 mb-2.5 grid gap-2.5">
-              {draft.conditions.map(c => (
-                <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus("")}
-                  className={"grid gap-2 rounded-bubble bg-white p-3.5 transition " + (focus === c.id ? "ring-2 ring-ink" : "")}>
+            <button type="button" className="btn-text" disabled={Boolean(busy)} onClick={() => go(0)}>← 처음 쓴 글 고치기</button>
+          </div>
+
+          <details className="mb-4 rounded-bubble bg-white px-4 py-3">
+            <summary className="cursor-pointer text-[13px] font-bold text-ink-2">처음 쓴 글 보기</summary>
+            <div className="mt-2 text-[15px] leading-loose whitespace-pre-wrap" aria-label="처음 쓴 글과 AI가 나눈 부분">
+              {marks.map(({ text, id }, i) => id
+                ? <mark key={i} onMouseEnter={() => setFocus(id)} onMouseLeave={() => setFocus("")}
+                    className={"cursor-default rounded-md px-0.5 text-ink transition " + KIND_BG[kinds.get(id) ?? "action"]
+                      + (focus === id ? " ring-2 ring-ink" : " opacity-80")}>{text}</mark>
+                : <span key={i}>{text}</span>)}
+            </div>
+          </details>
+
+          <label className="grid gap-1.5 text-sm font-bold">공지 제목
+            <span className="flex items-center gap-2">
+              <span className="shrink-0 rounded-md bg-white px-2.5 py-2 font-mono text-[15px]" title="작성일">[{title.date}]</span>
+              <input className="min-w-0 flex-1" value={title.summary} placeholder="작업 내용 요약"
+                onChange={e => updateDraft({ title: datedTitle(e.target.value, title.date) })} />
+            </span>
+          </label>
+
+          <p className="mt-5 mb-2 text-sm font-bold">작업자에게 전할 내용</p>
+          <ul className="mb-2.5 grid gap-2.5">
+            {draft.conditions.map(c => (
+              <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus("")}
+                className={"grid grid-cols-[64px_minmax(0,1fr)] items-stretch overflow-hidden rounded-bubble bg-white transition "
+                  + (focus === c.id ? "ring-2 ring-ink" : "")}>
+                <label className={"grid cursor-pointer place-items-center content-center gap-1 px-1 text-center text-[12px] font-bold leading-tight transition "
+                  + (c.check ? "bg-ink text-paper" : "bg-paper text-ink-3 hover:text-ink")}>
+                  <input type="checkbox" className="size-5" checked={c.check} onChange={e => updateCondition(c.id, { check: e.target.checked })} />
+                  꼭 확인
+                </label>
+                <div className="grid gap-2 p-3">
+                  <input className="font-semibold" aria-label="내용" value={c.label} placeholder="한 문장으로"
+                    onChange={e => updateCondition(c.id, { label: e.target.value })} />
                   <div className="flex items-center gap-2">
                     <Select label="종류" value={c.kind} options={KIND_OPTIONS} onChange={kind => updateCondition(c.id, { kind })} />
-                    <label className="inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-bold">
-                      <input type="checkbox" checked={c.check} onChange={e => updateCondition(c.id, { check: e.target.checked })} />
-                      질문으로 확인
-                    </label>
                     <span className="flex-1" />
-                    <button type="button" className="btn-text text-[13px] !text-ink-3 hover:!text-stop" aria-label={`${c.id.slice(1)}번 삭제`}
+                    <button type="button" className="btn-text text-[13px] !text-ink-3 hover:!text-stop" aria-label={`${c.label || "항목"} 삭제`}
                       disabled={draft.conditions.length === 1}
                       onClick={() => updateDraft({ conditions: draft.conditions.filter(x => x.id !== c.id) })}>삭제</button>
                   </div>
-                  <input className="font-semibold" aria-label="내용" value={c.label} placeholder="한 문장으로"
-                    onChange={e => updateCondition(c.id, { label: e.target.value })} />
-                </li>
-              ))}
-            </ul>
-            <button type="button" className="btn-text" onClick={addCondition}>+ 항목 추가</button>
-
-            <div className="mt-5 grid justify-items-center gap-2">
-              {checked.length ? (
-                <div className="flex flex-wrap items-center justify-center gap-2 text-sm font-bold">
-                  <span>체크한 {checked.length}개로</span>
-                  <Segmented label="질문 유형" value={questionKind} onChange={setQuestionKind}
-                    options={TYPE_ORDER.map(value => ({ value, label: QUESTION_TYPES[value] }))} />
-                  <span>질문</span>
-                  <Segmented label="질문 개수" value={questionCount} onChange={setChosenCount}
-                    options={COUNTS.map(value => ({ value, label: String(value) }))} />
-                  <span>개</span>
                 </div>
-              ) : <p className="text-[13px] text-ink-2">질문으로 확인할 항목을 하나 이상 체크해 주세요.</p>}
-              <div className="flex flex-wrap justify-center gap-2">
-                {preview && (
-                  <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(2)}>이전 질문 보기 →</button>
-                )}
-                <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makeQuestion}>
-                  {busy === "preview" ? <><Loading size={22} tone="light" />질문 만드는 중</> : preview ? "질문 다시 만들기" : "질문 만들기"}
-                </button>
-              </div>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="btn-text" onClick={addCondition}>+ 내용 추가</button>
+
+          <div className="mt-6 grid justify-items-center gap-3 border-t border-canvas pt-5">
+            {checked.length ? (
+              <p className="text-center text-sm"><b>꼭 확인</b> {checked.length}개 → 작업자에게 <b>{QUESTION_TYPES[questionKind]} 질문 {questionCount}개</b>로 물어봐요.</p>
+            ) : <p className="text-sm font-bold text-stop">작업자에게 확인할 항목을 하나 이상 체크해 주세요.</p>}
+            {checked.length > 0 && (
+              <details className="w-full max-w-[520px] rounded-bubble bg-white px-4 py-3 text-sm">
+                <summary className="cursor-pointer text-center text-[13px] font-bold text-ink-2">질문 방식 바꾸기</summary>
+                <div className="mt-3 grid gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold">질문 유형</span>
+                    <Segmented label="질문 유형" value={questionKind} onChange={setQuestionKind}
+                      options={TYPE_ORDER.map(value => ({ value, label: QUESTION_TYPES[value] }))} />
+                  </div>
+                  <p className="text-[13px] text-ink-2">{TYPE_HELP[questionKind]}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold">질문 개수</span>
+                    <Segmented label="질문 개수" value={questionCount} onChange={setChosenCount}
+                      options={COUNTS.map(value => ({ value, label: String(value) }))} />
+                  </div>
+                </div>
+              </details>
+            )}
+            <div className="flex flex-wrap justify-center gap-2">
+              {preview && (
+                <button type="button" className="btn-secondary" disabled={Boolean(busy)} onClick={() => go(2)}>만들어 둔 미리보기 →</button>
+              )}
+              <button className="btn-primary" aria-busy={busy === "preview"} disabled={Boolean(busy) || !canPreview} onClick={makeQuestion}>
+                {busy === "preview" ? <><Loading size={22} tone="light" />질문 만드는 중</> : preview ? "질문 다시 만들기" : "질문 만들고 미리보기 →"}
+              </button>
             </div>
-          </section>
-      </div>
+          </div>
+        </section>
       )}
 
       {/* ---------- worker preview & translation check ---------- */}
@@ -300,7 +326,10 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
       {screen === 2 && preview && translation && draft && (
         <section className="card">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <h2>작업자가 보는 화면</h2>
+            <div className="grid gap-1">
+              <h2>작업자 휴대폰에 이렇게 보여요</h2>
+              <p className="text-[13px] text-ink-2">보내기 전 마지막 확인이에요. 질문 문장은 여기서 바로 고칠 수 있어요.</p>
+            </div>
             <div className="flex gap-1.5 rounded-full bg-white p-1" role="tablist" aria-label="미리보기 언어">
               {WORKER_LANGS.map(lang => {
                 const bad = preview.translations[lang].checks.some(c => !c.preserved);
@@ -329,7 +358,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
             </div>
             <div className="min-w-0">
               <div className="grid gap-3 rounded-bubble bg-ink p-5 text-paper">
-                <h3 className="text-sm font-bold text-ink-3">질문 (순서대로 물어봐요)</h3>
+                <h3 className="font-bold">작업자에게 물어볼 질문 <span className="text-[13px] font-semibold text-ink-3">· 순서대로 하나씩 물어봐요</span></h3>
                 <ol className="grid gap-3">
                   {draft.questions.map((q, i) => (
                     <li key={q.id} className="grid gap-2.5 rounded-2xl bg-white/5 p-3.5">
@@ -349,7 +378,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                         </label>
                       )}
                       <div className="grid gap-1.5">
-                        <span className="text-[13px] font-bold text-ink-3">확인할 항목</span>
+                        <span className="text-[13px] font-bold text-ink-3">이 질문으로 확인할 내용</span>
                         <div className="flex flex-wrap gap-1.5">
                           {checked.map(c => {
                             const on = q.conditionIds.includes(c.id);
@@ -358,7 +387,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                                 onClick={() => editQuestion(q.id, { conditionIds: on ? q.conditionIds.filter(x => x !== c.id) : checked.map(x => x.id).filter(x => x === c.id || q.conditionIds.includes(x)) })}
                                 className={"max-w-full cursor-pointer truncate rounded-full px-2.5 py-1 text-xs font-bold transition "
                                   + (on ? KIND_BG[c.kind] : "bg-white/10 text-ink-3 hover:text-paper")}>
-                                {c.id.slice(1)}. {c.label}
+                                {c.label}
                               </button>
                             );
                           })}
@@ -366,7 +395,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                       </div>
                       {!questionReady(q) && (
                         <p className="text-[13px] text-except">
-                          {!q.text.trim() ? "질문을 입력해 주세요." : !q.conditionIds.length ? "확인할 항목을 하나 이상 골라 주세요." : "정답을 입력해 주세요."}
+                          {!q.text.trim() ? "질문을 입력해 주세요." : !q.conditionIds.length ? "확인할 내용을 하나 이상 골라 주세요." : "정답을 입력해 주세요."}
                         </p>
                       )}
                     </li>
@@ -389,7 +418,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
               <div className="mt-6 grid justify-items-center gap-3">
                 {mismatch.length > 0 && (
                   <div className="grid gap-2 rounded-2xl bg-stop/15 p-4">
-                    <p className="text-sm font-bold">번역에서 의미가 달라졌을 수 있는 조건이 {mismatch.length}건 있어요.</p>
+                    <p className="text-sm font-bold">번역하면서 뜻이 달라졌을 수 있는 내용이 {mismatch.length}건 있어요.</p>
                     <ul className="grid gap-1 text-[13px] text-ink-2">
                       {mismatch.map(m => (
                         <li key={m.lang + m.id}>
@@ -400,13 +429,14 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
                     </ul>
                     <label className="flex items-center gap-2 text-sm font-bold">
                       <input type="checkbox" checked={acceptMismatch} onChange={e => setAcceptMismatch(e.target.checked)} />
-                      확인했고, 이대로 발행합니다.
+                      확인했어요. 이대로 보낼게요.
                     </label>
                   </div>
                 )}
                 <button className="btn-primary !px-6 !py-4 text-base" aria-busy={busy === "publish"} disabled={Boolean(busy) || questionChanged || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>
                   {busy === "publish" ? <><Loading size={22} tone="light" />보내는 중</> : "작업자에게 보내기"}
                 </button>
+                <p className="text-[13px] text-ink-2">보내면 작업자가 휴대폰으로 찍을 QR 코드가 만들어져요.</p>
               </div>
             </div>
           </div>
@@ -415,7 +445,7 @@ export default function AdminWorkspace({ recent }: { recent: RecentNotice[] }) {
 
       {screen === 0 && recent.length > 0 && (
         <section className="card">
-          <h2>발행한 공지</h2>
+          <h2>지금까지 보낸 공지</h2>
           <ul className="mt-3 grid gap-1.5">
             {recent.map(n => (
               <li key={n.id} className="flex flex-wrap items-baseline gap-3">
