@@ -1,12 +1,30 @@
 # 현장노트 · 읽음에서 이해로
 
-> 관리자가 한국어로 쓴 작업 변경 지시를 AI가 **조건 단위**로 나누고, 외국인 작업자는 **QR 하나로 자기 언어**로 공지를 받아 답합니다. AI는 작업자가 **조건별로 이해했는지** 확인합니다.
->
-> 공지에 근거가 없는 질문에는 AI가 답하지 않고 관리자에게 넘깁니다. 관리자 답변은 작업자 언어로 번역되고, 공지의 새 버전으로 반영됩니다.
+> 외국인 근로자가 작업 지시를 **읽었는지가 아니라 이해했는지** 확인하는 서비스 · EasyThon 5팀
 
-## Architecture
+## 문제 정의
 
-![현장노트 아키텍처](docs/architecture.png)
+작업 지시는 자주 바뀌는데, 그 변경이 제대로 전달되지 않습니다.
+
+| 수치 | 내용 |
+|---|---|
+| **48.9%** | 외국인 근로자 고용 사업주 중, ‘작업 지시 이해’가 현장 필요 수준에 못 미친다고 응답 |
+| **63.9%** | 의사소통이 어려운 기업 중, 작업 지시 오해로 생산 차질을 겪은 곳 |
+
+<sub>출처: 한국산업인력공단 E-9 근로자 한국어 실태조사(2026.1 보도) · 중소기업중앙회(2025)</sub>
+
+‘확인했습니다’ 답장이 와도, 오해는 **작업을 시작한 뒤에** 드러납니다.
+
+## 솔루션
+
+작업자가 **자기 말로 설명**하면, 작업 전에 이해를 확인합니다.
+
+| | 흐름 |
+|---|---|
+| 지금 | 공지 → 번역 → 읽음 · 확인 답장 → ❓ 이해했는지 모름 |
+| **현장노트** | 공지 → 내 언어로 번역 → 상황 질문에 자기 말로 답하기 → ✅ 이해 확인 |
+
+“읽었나요?”가 아니라 **“현장에서 어떻게 할 건가요?”** 를 묻습니다.
 
 ## Key Features
 
@@ -60,20 +78,24 @@
 | 답변 전달 | 한국어 답변 → 작업자 언어로 번역해 전달 |
 | 공지 버전 | 답변을 addendum으로 기록, 이후 판정 근거에 포함 |
 
-## AI Pipeline
+## Project Architecture
 
-모든 AI 출력은 서버 검증을 거치고, 대화 상태는 AI가 아니라 규칙(`server/decide.ts`)이 정합니다.
+```text
+app/         라우트: page.tsx(관리자) · notices/[id](대시보드) · n/[id](작업자) · api/[action]
+features/    admin/ 관리자 화면 · worker/ 작업자 화면
+ui/          공용 화면 조각
+shared/      서버 · 브라우저 공용 타입과 언어 문구
+server/      서버 전용 (server-only)
+├── ai/      AI 호출 (분석 · 번역 · 역번역 · 판정), 개발용 Mock
+├── db/      SQLite 저장소
+├── workflow.ts   서비스 로직
+├── decide.ts     판정 상태 머신
+└── actions.ts    액션 목록과 입력 검증
+```
 
-![현장노트 AI 파이프라인](docs/ai-pipeline.png)
+## Technical Architecture
 
-| 단계 | AI가 하는 일 | 서버가 검증하는 것 |
-|---|---|---|
-| 분석 | 원문 → 조건 · 상황 질문 | 근거가 원문의 정확한 부분 문자열인지 |
-| 번역 | EN · VI 번역 + 역번역 비교 | 조건 ID 일치, 한국어 잔존 여부 |
-| 판정 | 조건별 met · missing · conflict + 발화 인용 | 인용이 실제 발화에 없으면 누락으로 강등 |
-| 관리자 답변 | 한국어 답변 번역 | 공지 새 버전으로 기록 |
-
-## Tech Stack
+![현장노트 아키텍처](docs/architecture.png)
 
 ### Frontend & Backend
 
@@ -100,39 +122,18 @@
 | GitHub Actions | PR 검사, `dev` 머지 시 자동 배포 |
 | AWS OIDC | 배포 중에만 러너 IP에 SSH 허용 |
 
-## Project Structure
+## AI Pipeline
 
-```text
-app/         라우트: page.tsx(관리자) · notices/[id](대시보드) · n/[id](작업자) · api/[action]
-features/    admin/ 관리자 화면 · worker/ 작업자 화면
-ui/          공용 화면 조각
-shared/      서버 · 브라우저 공용 타입과 언어 문구
-server/      서버 전용 (server-only)
-├── ai/      AI 호출 (분석 · 번역 · 역번역 · 판정), 개발용 Mock
-├── db/      SQLite 저장소
-├── workflow.ts   서비스 로직
-├── decide.ts     판정 상태 머신
-└── actions.ts    액션 목록과 입력 검증
-```
+모든 AI 출력은 서버 검증을 거치고, 대화 상태는 AI가 아니라 규칙(`server/decide.ts`)이 정합니다.
 
-## Getting Started
+![현장노트 AI 파이프라인](docs/ai-pipeline.png)
 
-Node.js 24 이상이 필요합니다.
-
-```bash
-npm ci
-cp .env.example .env.local   # OPENAI_API_KEY 입력
-npm run dev                  # http://127.0.0.1:3000
-```
-
-```bash
-npm test         # 판정 상태 머신 테스트 (AI · DB 없이 실행)
-npm run verify   # 타입체크 → React Compiler 검사 → 테스트 → 빌드
-```
-
-> 💡 `OPENAI_API_KEY`가 비어 있으면 개발 모드에서 Mock AI가 대신 응답합니다.
->
-> 📱 휴대폰 QR 시연: `cloudflared tunnel --url http://127.0.0.1:3000`으로 받은 주소를 `.env.local`의 `PUBLIC_BASE_URL`에 넣으세요.
+| 단계 | AI가 하는 일 | 서버가 검증하는 것 |
+|---|---|---|
+| 분석 | 원문 → 조건 · 상황 질문 | 근거가 원문의 정확한 부분 문자열인지 |
+| 번역 | EN · VI 번역 + 역번역 비교 | 조건 ID 일치, 한국어 잔존 여부 |
+| 판정 | 조건별 met · missing · conflict + 발화 인용 | 인용이 실제 발화에 없으면 누락으로 강등 |
+| 관리자 답변 | 한국어 답변 번역 | 공지 새 버전으로 기록 |
 
 ## CI/CD
 
