@@ -146,18 +146,18 @@ export function validateQuestions(raw: unknown, draft: Draft, { type, count }: Q
   const items = (raw as { questions?: unknown } | null)?.questions;
   if (!Array.isArray(items) || !items.length) throw invalidOutput();
   return (items as Loose<Question>[]).slice(0, count).map((q, i): Question => {
-    if (!hasText(q?.text) || !hasText(q.reason) || (type === "short" && !hasText(q.answer))) throw invalidOutput();
+    if (!hasText(q?.text) || !hasText(q.reason) || !hasText(q.answer)) throw invalidOutput();
     const ids = Array.isArray(q.conditionIds) ? checked.filter(id => (q.conditionIds as unknown[]).includes(id)) : [];
     return {
       id: "q" + (i + 1), type, text: q.text.trim(), reason: q.reason.trim(),
       conditionIds: ids.length ? ids : checked,
-      answer: type === "short" && hasText(q.answer) ? q.answer.trim() : "",
+      answer: q.answer.trim(),
     };
   });
 }
 
 const QUESTION_STYLE: Record<QuestionType, string> = {
-  open: `Each question is an open-ended situational question that makes the worker describe what they will actually do, so a worker who misunderstood would reveal it. answer: "".`,
+  open: `Each question is an open-ended situational question that makes the worker describe what they will actually do, so a worker who misunderstood would reveal it. answer: a model Korean answer of one or two plain sentences, in the worker's first person, that a worker who understood would give — covering every condition the question tests, using only facts in the notice.`,
   short: `Each question is a short-answer question the worker can answer in a few words (a place, a time, a yes/no about an action, what replaces the usual work). answer: the expected short Korean answer taken from the notice.`,
 };
 
@@ -279,7 +279,7 @@ const judgmentSchema = objectSchema({
 });
 
 const JUDGE_STYLE: Record<QuestionType, string> = {
-  open: "The question is open-ended: the worker describes what they will do.",
+  open: "The question is open-ended: the worker describes what they will do. expectedAnswer is the manager's example of a good answer; use it as a reference only — any wording that states the same actions meets the conditions, and the conditions decide the verdict.",
   short: "The question is short-answer and has an expectedAnswer. A checked condition is met when the worker's answer means the same as expectedAnswer (any language, short words are fine); conflict when it says something incompatible.",
 };
 

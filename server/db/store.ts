@@ -194,7 +194,7 @@ export function workerNotice(notice: Notice, lang: Lang): WorkerNotice {
   const kinds = new Map(notice.draft.conditions.map(c => [c.id, c.kind]));
   const types = new Map(notice.draft.questions.map(q => [q.id, q.type]));
   return {
-    id: notice.id, lang, version: notice.version, title: t.title, summary: t.summary,
+    id: notice.id, lang, version: notice.version, title: t.title, summary: t.summary, source: notice.source,
     questions: t.questions.map(q => ({ ...q, type: types.get(q.id) ?? "open" })),
     conditions: t.conditions.map(c => ({ id: c.id, kind: kinds.get(c.id), text: c.text })),
     addenda: notice.addenda.map(a => ({ id: a.id, ...a.translations[lang] })),

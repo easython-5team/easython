@@ -7,7 +7,7 @@ import type { CheckStatus, DashboardEscalation, DashboardView, DashboardWorker, 
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import Chevron from "../../ui/Chevron";
-import QuizAnswer from "./QuizAnswer";
+import QuizAnswer, { AnswerText } from "./QuizAnswer";
 import { post } from "../../ui/request";
 import { formatTime } from "../../shared/time.ts";
 import { CHECK_BG, TONE_BG, type Tone } from "../../ui/tone.ts";
@@ -218,9 +218,9 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
             <p className="text-[13px] text-ink-3">확인 퀴즈</p>
             <ol className="grid gap-3">
               {notice.draft.questions.map((q, i) => (
-                <li key={q.id} className="grid gap-0.5">
-                  <p><span className="mr-1.5 font-semibold text-ink-2">Q{i + 1}</span>{q.text}</p>
-                  <QuizAnswer question={q} conditions={notice.draft.conditions} />
+                <li key={q.id} className="grid gap-1.5">
+                  <span className="text-sm font-semibold text-ink-2">Q{i + 1}</span>
+                  <QuizAnswer question={q.text} label={`퀴즈 ${i + 1} 정답 보기`} answer={<AnswerText question={q} conditions={notice.draft.conditions} />} />
                 </li>
               ))}
             </ol>

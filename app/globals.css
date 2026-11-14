@@ -62,7 +62,7 @@
 
 @layer components {
   .btn-primary, .btn-secondary {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[15px] leading-tight font-semibold no-underline select-none;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-3.5 text-[15px] leading-tight font-semibold no-underline select-none;
     transition: transform 120ms ease-out, background-color 150ms, box-shadow 150ms;
   }
   .btn-primary:active:not(:disabled), .btn-secondary:active:not(:disabled) { transform: scale(0.96); }
@@ -77,10 +77,23 @@
 /* Moving forward slides the next screen in from the right; going back, from the left. */
 @keyframes slide-from-right { from { opacity: 0; transform: translateX(32px); } }
 @keyframes slide-from-left { from { opacity: 0; transform: translateX(-32px); } }
-@media (prefers-reduced-motion: no-preference) {
-  .slide-forward { animation: slide-from-right 260ms cubic-bezier(.2,.8,.2,1); }
-  .slide-back { animation: slide-from-left 260ms cubic-bezier(.2,.8,.2,1); }
+/* Browsers with View Transitions slide the whole screen instead (ui/slide.ts). */
+@supports not (view-transition-name: none) {
+  @media (prefers-reduced-motion: no-preference) {
+    .slide-forward { animation: slide-from-right 260ms cubic-bezier(.2,.8,.2,1); }
+    .slide-back { animation: slide-from-left 260ms cubic-bezier(.2,.8,.2,1); }
+  }
 }
+@keyframes page-out-left { to { transform: translateX(-30%); opacity: 0; } }
+@keyframes page-out-right { to { transform: translateX(30%); opacity: 0; } }
+@keyframes page-in-right { from { transform: translateX(100%); } }
+@keyframes page-in-left { from { transform: translateX(-100%); } }
+::view-transition-group(root) { animation-duration: 340ms; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 340ms; animation-timing-function: cubic-bezier(.2,.8,.2,1); mix-blend-mode: normal; }
+html[data-slide="forward"]::view-transition-old(root) { animation-name: page-out-left; }
+html[data-slide="forward"]::view-transition-new(root) { animation-name: page-in-right; }
+html[data-slide="back"]::view-transition-old(root) { animation-name: page-out-right; }
+html[data-slide="back"]::view-transition-new(root) { animation-name: page-in-left; }
 
 @media print {
   body * { visibility: hidden; }
