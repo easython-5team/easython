@@ -207,6 +207,11 @@ export default function AdminWorkspace() {
   const title = splitTitle(draft.title);
   const itemsReady = Boolean(title.summary.trim() && draft.conditions.length && draft.conditions.every(c => c.label.trim()));
   const quizReady = Boolean(draft.questions.length && draft.questions.every(q => q.text.trim() && q.answer.trim()));
+  // What still blocks "다음" on the quiz step, so the button is never disabled without a reason.
+  const missing = draft.questions.flatMap((q, i) => [
+    ...(q.text.trim() ? [] : [`Q${i + 1} 질문`]),
+    ...(q.answer.trim() ? [] : [`Q${i + 1} ${q.type === "short" ? "정답" : "예시 답변"}`]),
+  ]);
 
   /* ---------- 2. items ---------- */
   if (step === 2) {
@@ -254,7 +259,7 @@ export default function AdminWorkspace() {
             <div key={q.id} className="grid gap-1.5">
               <span className="text-sm font-semibold text-ink-2">Q{i + 1}</span>
               <div className="flex items-start gap-1">
-                <QuizAnswer label={`퀴즈 ${i + 1} 정답 보기`}
+                <QuizAnswer label={`퀴즈 ${i + 1} 정답 보기`} defaultOpen={!q.answer.trim()}
                   question={<textarea rows={1} aria-label={`퀴즈 ${i + 1}`} value={q.text} placeholder="질문"
                     className="field-sizing-content resize-none !bg-transparent !py-2 text-[16px] font-medium !shadow-none"
                     onChange={e => setQuestion(q.id, { text: e.target.value })} />}
@@ -271,6 +276,9 @@ export default function AdminWorkspace() {
             <button type="button" className="btn-text justify-self-start" onClick={addQuestion}>+ 추가</button>
           )}
         </div>
+        {missing.length > 0 && (
+          <p role="status" className="text-[13px] font-semibold text-bad-fg">{missing.join(" · ")}을 입력하세요</p>
+        )}
         {errorToast}
       </Step>
     );
