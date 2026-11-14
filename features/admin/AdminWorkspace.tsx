@@ -11,6 +11,7 @@ import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
 import Chevron from "../../ui/Chevron";
 import QuizAnswer from "./QuizAnswer";
+import { slideTo } from "../../ui/slide.ts";
 import { datedTitle, splitTitle } from "../../shared/title.ts";
 
 // A new notice in four screens, one job each: write, check the items,
@@ -89,20 +90,25 @@ export default function AdminWorkspace() {
     const onPop = (event: PopStateEvent) => {
       const state = event.state as { step?: unknown } | null;
       const next = typeof state?.step === "number" ? state.step : 1;
-      setDir(next < current.current ? "back" : "forward");
+      const d = next < current.current ? "back" : "forward";
       current.current = next;
-      setStep(next);
-      window.scrollTo({ top: 0 });
+      slideTo(d, () => {
+        setDir(d);
+        setStep(next);
+        window.scrollTo({ top: 0 });
+      });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   function go(next: number) {
     history.pushState({ ...history.state, step: next }, "");
-    setDir("forward");
     current.current = next;
-    setStep(next);
-    window.scrollTo({ top: 0 });
+    slideTo("forward", () => {
+      setDir("forward");
+      setStep(next);
+      window.scrollTo({ top: 0 });
+    });
   }
   function back() {
     if (!busy) history.back();

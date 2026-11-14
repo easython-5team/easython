@@ -10,6 +10,7 @@ import { useRecognition } from "./speech";
 import Loading, { VoiceWave } from "../../ui/Loading";
 import Chevron from "../../ui/Chevron";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
+import { slideTo } from "../../ui/slide.ts";
 
 const noSubscription = () => () => {};
 
@@ -27,6 +28,7 @@ export default function WorkerApp({ id }: { id: string }) {
   const [restoreFailed, setRestoreFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [slide, setSlide] = useState("");
   const t = WORKER_TEXT[lang ?? "en"];
 
   async function load(session: string) {
@@ -63,7 +65,7 @@ export default function WorkerApp({ id }: { id: string }) {
       const { sessionId: created } = await post("join", { id, lang, name: name.trim() }, t.retry);
       localStorage.setItem(storageKey(id), created);
       await load(created);
-      setSessionId(created);
+      slideTo("forward", () => setSessionId(created));
     } catch (err) {
       setError(err instanceof Error && err.message !== "network" ? err.message : t.retry);
     }
@@ -74,14 +76,21 @@ export default function WorkerApp({ id }: { id: string }) {
   useEffect(() => {
     if (sessionId) return;
     const onPop = (event: PopStateEvent) => {
-      if ((event.state as { w?: unknown } | null)?.w !== "name") setLang(null);
+      if (!lang || (event.state as { w?: unknown } | null)?.w === "name") return;
+      slideTo("back", () => {
+        setSlide("slide-back");
+        setLang(null);
+      });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [sessionId]);
+  }, [sessionId, lang]);
   function pickLanguage(code: Lang) {
     history.pushState({ ...history.state, w: "name" }, "");
-    setLang(code);
+    slideTo("forward", () => {
+      setSlide("slide-forward");
+      setLang(code);
+    });
   }
 
   const restoring = savedId === undefined || (typeof savedId === "string" && !sessionId && !restoreFailed);
@@ -93,7 +102,7 @@ export default function WorkerApp({ id }: { id: string }) {
 
   if (!lang) {
     return (
-      <section className="grid gap-5 pt-6">
+      <section className={"grid gap-5 pt-6 " + slide}>
         <h1 lang="en">{WORKER_TEXT.en.chooseLanguage}</h1>
         <div className="grid divide-y divide-grid overflow-hidden rounded-card border border-grid bg-paper">
           {WORKER_LANGS.map(code => (
@@ -109,7 +118,7 @@ export default function WorkerApp({ id }: { id: string }) {
   }
 
   return (
-    <form className="grid gap-4 pt-6" lang={lang} onSubmit={start}>
+    <form className={"grid gap-4 pt-6 " + slide} lang={lang} onSubmit={start}>
       <button type="button" className="btn-text -ml-1 flex items-center gap-0.5 justify-self-start" onClick={() => history.back()}><Chevron />{LANGUAGES[lang].native}</button>
       <label className="grid gap-3 text-[26px] font-bold tracking-[-0.03em]">{t.namePrompt}
         <input autoFocus value={name} maxLength={40} placeholder={t.namePlaceholder} className="!py-3.5 !text-[18px]"
@@ -195,9 +204,11 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     const onPop = (event: PopStateEvent) => {
       recognition.stop();
       const next = (event.state as { w?: unknown } | null)?.w === "answer" ? "answer" : "read";
-      setSlide(next === "read" ? "slide-back" : "slide-forward");
-      setStep(next);
-      window.scrollTo({ top: 0 });
+      slideTo(next === "read" ? "back" : "forward", () => {
+        setSlide(next === "read" ? "slide-back" : "slide-forward");
+        setStep(next);
+        window.scrollTo({ top: 0 });
+      });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -206,16 +217,20 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     recognition.stop();
     if (next === "answer") {
       history.pushState({ ...history.state, w: "answer" }, "");
-      setSlide("slide-forward");
-      setStep("answer");
+      slideTo("forward", () => {
+        setSlide("slide-forward");
+        setStep("answer");
+        window.scrollTo({ top: 0 });
+      });
     } else if ((history.state as { w?: unknown } | null)?.w === "answer") {
       history.back();
-      return;
     } else {
-      setSlide("slide-back");
-      setStep("read");
+      slideTo("back", () => {
+        setSlide("slide-back");
+        setStep("read");
+        window.scrollTo({ top: 0 });
+      });
     }
-    window.scrollTo({ top: 0 });
   }
 
   const stage = step === "read" ? 0 : finished ? 2 : 1;
