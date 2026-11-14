@@ -37,8 +37,8 @@ export function questionCount(value: unknown): number {
   return value;
 }
 
-// Each question must test at least one checked condition, and a short
-// question needs its expected answer.
+// Each question must test at least one checked condition and carry its
+// answer: the expected short answer, or an example answer for an open one.
 function reviewedQuestions(value: unknown, checked: Set<string>): Question[] {
   if (!Array.isArray(value) || value.length > MAX_QUESTIONS) throw invalid(`질문은 최대 ${MAX_QUESTIONS}개예요.`);
   const ids = new Set<string>();
@@ -52,7 +52,7 @@ function reviewedQuestions(value: unknown, checked: Set<string>): Question[] {
     return {
       id: q.id, type, conditionIds,
       text: field(q.text, `질문 ${n}`, 500),
-      answer: type === "short" ? field(q.answer, `질문 ${n}의 정답`, 200) : "",
+      answer: type === "short" ? field(q.answer, `질문 ${n}의 정답`, 200) : field(q.answer, `질문 ${n}의 예시 답변`, 500),
       reason: typeof q.reason === "string" ? q.reason.trim().slice(0, 500) : "",
     };
   });

@@ -70,7 +70,7 @@ export async function writeQuestions(_source: string, draft: Draft, { type, coun
     return {
       id: "q" + (i + 1), type, conditionIds: c ? [c.id] : [],
       text: QUESTION_BY_KIND[c?.kind ?? "action"],
-      answer: type === "short" ? label.slice(0, 20) : "",
+      answer: type === "short" ? label.slice(0, 20) : label,
       reason: "개발용 가짜 AI가 만든 질문입니다.",
     };
   });

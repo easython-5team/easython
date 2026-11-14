@@ -206,7 +206,7 @@ export default function AdminWorkspace() {
 
   const title = splitTitle(draft.title);
   const itemsReady = Boolean(title.summary.trim() && draft.conditions.length && draft.conditions.every(c => c.label.trim()));
-  const quizReady = Boolean(draft.questions.length && draft.questions.every(q => q.text.trim() && (q.type !== "short" || q.answer.trim())));
+  const quizReady = Boolean(draft.questions.length && draft.questions.every(q => q.text.trim() && q.answer.trim()));
 
   /* ---------- 2. items ---------- */
   if (step === 2) {
@@ -254,13 +254,17 @@ export default function AdminWorkspace() {
             <div key={q.id} className="grid gap-1.5">
               <span className="text-sm font-semibold text-ink-2">Q{i + 1}</span>
               <div className="flex items-start gap-1">
-                <textarea rows={2} aria-label={`퀴즈 ${i + 1}`} value={q.text} onChange={e => setQuestion(q.id, { text: e.target.value })} />
+                <QuizAnswer label={`퀴즈 ${i + 1} 정답 보기`}
+                  question={<textarea rows={1} aria-label={`퀴즈 ${i + 1}`} value={q.text} placeholder="질문"
+                    className="field-sizing-content resize-none !bg-transparent !py-2 text-[16px] font-medium !shadow-none"
+                    onChange={e => setQuestion(q.id, { text: e.target.value })} />}
+                  answer={
+                    <textarea rows={1} aria-label={`퀴즈 ${i + 1} ${q.type === "short" ? "정답" : "예시 답변"}`} placeholder={q.type === "short" ? "정답" : "예시 답변"}
+                      value={q.answer} className="field-sizing-content resize-none !bg-paper text-[15px]" onChange={e => setQuestion(q.id, { answer: e.target.value })} />
+                  } />
                 <RemoveButton label={`퀴즈 ${i + 1} 삭제`} disabled={draft.questions.length === 1}
                   onClick={() => edit(d => ({ ...d, questions: d.questions.filter(x => x.id !== q.id) }))} />
               </div>
-              {q.type === "short" ? (
-                <input aria-label={`퀴즈 ${i + 1} 정답`} placeholder="정답" value={q.answer} onChange={e => setQuestion(q.id, { answer: e.target.value })} />
-              ) : <QuizAnswer question={q} conditions={draft.conditions} />}
             </div>
           ))}
           {draft.questions.length < MAX_QUESTIONS && (

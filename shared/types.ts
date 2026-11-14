@@ -23,7 +23,7 @@ export interface Question {
   text: string;
   /** Checked conditions this question tests; its answer is judged on these only. */
   conditionIds: string[];
-  /** Expected answer for a short question; empty for an open one. */
+  /** Expected answer for a short question; an example answer for an open one. */
   answer: string;
   /** Why the question was asked, for the manager. */
   reason: string;
