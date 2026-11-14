@@ -5,3 +5,6 @@ data/
 !.env.example
 next-env.d.ts
 *.tsbuildinfo
+.next-demo/
+.DS_Store
+*.pem
