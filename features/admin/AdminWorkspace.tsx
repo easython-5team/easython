@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang } from "../../shared/languages.ts";
 import { MAX_QUESTIONS } from "../../shared/questions.ts";
-import type { Condition, Draft, PreviewResult, Question } from "../../shared/types.ts";
+import type { Draft, PreviewResult, Question } from "../../shared/types.ts";
 import NoticeView from "../worker/NoticeView";
 import { post } from "../../ui/request";
 import FloatingError from "../../ui/FloatingError";
@@ -12,22 +12,16 @@ import Loading from "../../ui/Loading";
 import Chevron from "../../ui/Chevron";
 import QuizAnswer from "./QuizAnswer";
 import { slideTo } from "../../ui/slide.ts";
-import { datedTitle, splitTitle } from "../../shared/title.ts";
-
-// A new notice in four screens, one job each: write, check the items,
-// check the quiz, preview and send. Every item is quizzed; there are no settings.
 
 const networkError = "요청을 완료하지 못했습니다. 연결을 확인한 뒤 다시 시도하세요.";
 const PLACEHOLDER = "예) 내일 오전 8시부터 B동 2층 도장 라인 사용 금지. A동 1층으로 이동해서 작업. 단, 반장 허락 시 B동 출입 가능.";
 const DEFAULT_QUIZ = 3;
-const STEPS = 4;
+const STEPS = 3;
 
 function nextId(prefix: string, ids: string[]): string {
   return prefix + (Math.max(0, ...ids.map(id => Number(id.slice(1)))) + 1);
 }
 
-// Every step has the same frame: back at top-left, step count at top-right,
-// one title, the content, and the main button full-width at the bottom.
 function Step({ index, title, onBack, dir, children, action }: {
   index: number; title: string; onBack?: () => void; dir: "forward" | "back"; children: ReactNode; action: ReactNode;
 }) {
@@ -67,8 +61,6 @@ export default function AdminWorkspace() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewedDraft, setPreviewedDraft] = useState("");
-  // The items the current quiz was written from; changing them asks for a new quiz.
-  const [quizFor, setQuizFor] = useState("");
   const [previewLang, setPreviewLang] = useState<Lang>("en");
   const [acceptMismatch, setAcceptMismatch] = useState(false);
   const [busy, setBusy] = useState("");
@@ -84,7 +76,7 @@ export default function AdminWorkspace() {
     }
     setBusy("");
   }
-  // Steps live in the browser history, so the browser's back button goes to the previous step.
+ 
   useEffect(() => {
     history.replaceState({ ...history.state, step: 1 }, "");
     const onPop = (event: PopStateEvent) => {
@@ -114,31 +106,23 @@ export default function AdminWorkspace() {
     if (!busy) history.back();
   }
 
-  /* ---------- server steps ---------- */
-  // 1 → 2: split the notice into items.
-  const analyze = () => run("analyze", async () => {
-    if (draft && source === analyzedSource) { go(2); return; }
-    const { draft: analyzed } = await post("analyze", { source }, networkError);
-    setAnalyzedSource(source);
-    setDraft({ ...analyzed, conditions: analyzed.conditions.map(c => ({ ...c, check: true })), questions: [] });
-    setQuizFor("");
-    setPreview(null);
+  const makeQuiz = () => run("quiz", async () => {
+    let current = draft && source === analyzedSource ? draft : null;
+    if (!current) {
+      const { draft: analyzed } = await post("analyze", { source }, networkError);
+      current = { ...analyzed, conditions: analyzed.conditions.map(c => ({ ...c, check: true })), questions: [] };
+      setAnalyzedSource(source);
+      setDraft(current);
+      setPreview(null);
+    }
+    if (!current.questions.length) {
+      const count = Math.min(MAX_QUESTIONS, DEFAULT_QUIZ, current.conditions.length);
+      const { draft: withQuiz } = await post("question", { source, draft: current, type: "open", count }, networkError);
+      setDraft(withQuiz);
+    }
     go(2);
   });
-  // 2 → 3: write the quiz from the items (kept as is when the items did not change).
-  const itemsKey = draft ? JSON.stringify(draft.conditions.map(c => c.label)) : "";
-  const quizCurrent = Boolean(draft?.questions.length) && quizFor === itemsKey;
-  const makeQuiz = () => run("quiz", async () => {
-    if (!draft) return;
-    if (!quizCurrent) {
-      const count = Math.min(MAX_QUESTIONS, DEFAULT_QUIZ, draft.conditions.length);
-      const { draft: withQuiz } = await post("question", { source: analyzedSource, draft, type: "open", count }, networkError);
-      setDraft(withQuiz);
-      setQuizFor(itemsKey);
-    }
-    go(3);
-  });
-  // 3 → 4: translate for workers (skipped when nothing changed).
+
   const translate = () => run("preview", async () => {
     if (!draft) return;
     if (!preview || JSON.stringify(draft) !== previewedDraft) {
@@ -147,7 +131,7 @@ export default function AdminWorkspace() {
       setPreviewedDraft(JSON.stringify(draft));
       setAcceptMismatch(false);
     }
-    go(4);
+    go(3);
   });
   const publish = () => run("publish", async () => {
     if (!preview) return;
@@ -158,23 +142,6 @@ export default function AdminWorkspace() {
   /* ---------- editing ---------- */
   function edit(change: (d: Draft) => Draft) {
     setDraft(current => (current ? change(current) : current));
-  }
-  function addItem() {
-    edit(d => {
-      const item: Condition = { id: nextId("c", d.conditions.map(c => c.id)), kind: "action", label: "", evidence: "", check: true };
-      return { ...d, conditions: [...d.conditions, item] };
-    });
-  }
-  function removeItem(id: string) {
-    edit(d => {
-      const conditions = d.conditions.filter(c => c.id !== id);
-      const all = conditions.map(c => c.id);
-      const questions = d.questions.map(q => {
-        const left = q.conditionIds.filter(x => x !== id);
-        return { ...q, conditionIds: left.length ? left : all };
-      });
-      return { ...d, conditions, questions };
-    });
   }
   function setQuestion(id: string, changes: Partial<Question>) {
     edit(d => ({ ...d, questions: d.questions.map(q => (q.id === id ? { ...q, ...changes } : q)) }));
@@ -193,8 +160,9 @@ export default function AdminWorkspace() {
     return (
       <Step dir={dir} index={1} title="바뀐 작업 내용을 입력하세요" onBack={() => { window.location.href = "/"; }}
         action={
-          <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
-            {busy === "analyze" ? <><Loading size={20} tone="light" />분석 중</> : "다음"}
+          <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "quiz"} disabled={Boolean(busy) || !source.trim()} onClick={makeQuiz}>
+            {busy === "quiz" ? <><Loading size={20} tone="light" />퀴즈 생성 중</>
+              : draft?.questions.length && source === analyzedSource ? "다음" : "AI 퀴즈 생성하기"}
           </button>
         }>
         <textarea aria-label="바뀐 작업 내용" rows={10} value={source} disabled={Boolean(busy)} autoFocus
@@ -204,8 +172,6 @@ export default function AdminWorkspace() {
     );
   }
 
-  const title = splitTitle(draft.title);
-  const itemsReady = Boolean(title.summary.trim() && draft.conditions.length && draft.conditions.every(c => c.label.trim()));
   const quizReady = Boolean(draft.questions.length && draft.questions.every(q => q.text.trim() && q.answer.trim()));
   // What still blocks "다음" on the quiz step, so the button is never disabled without a reason.
   const missing = draft.questions.flatMap((q, i) => [
@@ -213,42 +179,10 @@ export default function AdminWorkspace() {
     ...(q.answer.trim() ? [] : [`Q${i + 1} ${q.type === "short" ? "정답" : "예시 답변"}`]),
   ]);
 
-  /* ---------- 2. items ---------- */
-  if (step === 2) {
+  /* ---------- 2. quiz ---------- */
+  if (step === 2 || !preview) {
     return (
-      <Step dir={dir} index={2} title="작업자에게 전달할 내용" onBack={back}
-        action={
-          <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "quiz"} disabled={Boolean(busy) || !itemsReady} onClick={makeQuiz}>
-            {busy === "quiz" ? <><Loading size={20} tone="light" />퀴즈 생성 중</> : quizCurrent ? "다음" : "AI 퀴즈 생성하기"}
-          </button>
-        }>
-        <label className="grid gap-1.5 text-sm font-semibold text-ink-2">제목
-          <span className="flex items-center gap-2">
-            <span className="shrink-0 font-mono text-[15px] font-normal text-ink-3">[{title.date}]</span>
-            <input className="font-semibold text-ink" value={title.summary}
-              onChange={e => edit(d => ({ ...d, title: datedTitle(e.target.value, title.date) }))} />
-          </span>
-        </label>
-        <div className="grid gap-2">
-          <span className="text-sm font-semibold text-ink-2">전달 사항</span>
-          {draft.conditions.map((c, i) => (
-            <div key={c.id} className="flex items-center gap-1">
-              <input aria-label={`전달 사항 ${i + 1}`} value={c.label}
-                onChange={e => edit(d => ({ ...d, conditions: d.conditions.map(x => (x.id === c.id ? { ...x, label: e.target.value } : x)) }))} />
-              <RemoveButton label={`전달 사항 ${i + 1} 삭제`} disabled={draft.conditions.length === 1} onClick={() => removeItem(c.id)} />
-            </div>
-          ))}
-          <button type="button" className="btn-text justify-self-start" onClick={addItem}>+ 추가</button>
-        </div>
-        {errorToast}
-      </Step>
-    );
-  }
-
-  /* ---------- 3. quiz ---------- */
-  if (step === 3 || !preview) {
-    return (
-      <Step dir={dir} index={3} title="확인 퀴즈" onBack={back}
+      <Step dir={dir} index={2} title="확인 퀴즈" onBack={back}
         action={
           <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "preview"} disabled={Boolean(busy) || !quizReady} onClick={translate}>
             {busy === "preview" ? <><Loading size={20} tone="light" />번역 중</> : "다음"}
@@ -284,14 +218,14 @@ export default function AdminWorkspace() {
     );
   }
 
-  /* ---------- 4. preview and send ---------- */
+  /* ---------- 3. preview and send ---------- */
   const translation = preview.translations[previewLang];
   const kinds = new Map(draft.conditions.map(c => [c.id, c.kind]));
   const types = new Map(draft.questions.map(q => [q.id, q.type]));
   const mismatch = WORKER_LANGS.flatMap(lang => preview.translations[lang].checks.filter(c => !c.preserved).map(c => ({ ...c, lang })));
 
   return (
-    <Step dir={dir} index={4} title="작업자 화면 미리보기" onBack={back}
+    <Step dir={dir} index={3} title="작업자 화면 미리보기" onBack={back}
       action={
         <button className="btn-primary min-w-48 !px-8" aria-busy={busy === "publish"}
           disabled={Boolean(busy) || (mismatch.length > 0 && !acceptMismatch)} onClick={publish}>

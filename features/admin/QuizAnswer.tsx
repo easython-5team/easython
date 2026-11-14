@@ -3,12 +3,8 @@ import { useId, useState, type ReactNode } from "react";
 import type { Condition, Question } from "../../shared/types.ts";
 import Chevron from "../../ui/Chevron";
 
-// A quiz question as one thick button; opening it shows the answer below.
-// `question` is the plain text (the whole row toggles) or an editor node
-// (only the chevron toggles, so typing does not open and close it).
 export default function QuizAnswer({ question, label, answer, defaultOpen }: {
   question: ReactNode; label: string; answer: ReactNode;
-  /** Starts open, e.g. when the answer still has to be written. */
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
