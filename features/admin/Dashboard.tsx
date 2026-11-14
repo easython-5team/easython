@@ -240,7 +240,7 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
         </section>
 
       <details className="card">
-        <summary className="cursor-pointer text-[17px] font-black tracking-[-0.03em]">보낸 공지와 질문</summary>
+        <summary className="cursor-pointer text-[17px] font-black tracking-[-0.03em]">보낸 공지와 퀴즈</summary>
         <p className="mt-4 rounded-2xl bg-white px-4 py-3 whitespace-pre-wrap">{notice.source}</p>
         <ol className="mt-3 grid gap-2">
           {notice.draft.questions.map((q, i) => (
