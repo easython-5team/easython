@@ -6,6 +6,7 @@ import { isLang, LANGUAGES } from "../../shared/languages.ts";
 import type { CheckStatus, DashboardEscalation, DashboardView, DashboardWorker, Notice, TurnState, WorkerStatus } from "../../shared/types.ts";
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
+import Chevron from "../../ui/Chevron";
 import { post } from "../../ui/request";
 import { formatTime } from "../../shared/time.ts";
 import { CHECK_BG, TONE_BG, type Tone } from "../../ui/tone.ts";
@@ -167,7 +168,7 @@ export default function Dashboard({ id, baseUrl }: { id: string; baseUrl: string
   return (
     <main className="mx-auto grid w-full max-w-[640px] gap-6 px-4 pt-5 pb-20 sm:px-6">
       <a href="/" className="-ml-2 -mb-3 flex h-9 items-center gap-1 justify-self-start rounded-lg px-2 text-[15px] font-semibold text-ink-2 no-underline hover:bg-paper hover:text-ink">
-        <span aria-hidden="true" className="text-lg leading-none">←</span>공지 목록
+        <Chevron />공지 목록
       </a>
       <header className="flex items-start justify-between gap-4">
         <div className="grid min-w-0 gap-1">

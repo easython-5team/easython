@@ -9,6 +9,7 @@ import NoticeView from "../worker/NoticeView";
 import { post } from "../../ui/request";
 import FloatingError from "../../ui/FloatingError";
 import Loading from "../../ui/Loading";
+import Chevron from "../../ui/Chevron";
 import { datedTitle, splitTitle } from "../../shared/title.ts";
 
 // A new notice in four screens, one job each: write, check the items,
@@ -33,7 +34,7 @@ function Step({ index, title, onBack, children, action }: {
       <div className="flex h-9 items-center justify-between">
         {onBack ? (
           <button type="button" onClick={onBack} className="-ml-2 flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[15px] font-semibold text-ink-2 hover:bg-paper hover:text-ink">
-            <span aria-hidden="true" className="text-lg leading-none">←</span>이전
+            <Chevron />이전
           </button>
         ) : <span />}
         <span className="text-[13px] font-semibold text-ink-3 tabular-nums">{index} / {STEPS}</span>
@@ -62,6 +63,8 @@ export default function AdminWorkspace() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [previewedDraft, setPreviewedDraft] = useState("");
+  // The items the current quiz was written from; changing them asks for a new quiz.
+  const [quizFor, setQuizFor] = useState("");
   const [previewLang, setPreviewLang] = useState<Lang>("en");
   const [acceptMismatch, setAcceptMismatch] = useState(false);
   const [busy, setBusy] = useState("");
@@ -98,17 +101,28 @@ export default function AdminWorkspace() {
   }
 
   /* ---------- server steps ---------- */
-  // 1 → 2: split the notice into items and write the quiz in one go.
+  // 1 → 2: split the notice into items.
   const analyze = () => run("analyze", async () => {
     if (draft && source === analyzedSource) { go(2); return; }
     const { draft: analyzed } = await post("analyze", { source }, networkError);
-    const all: Draft = { ...analyzed, conditions: analyzed.conditions.map(c => ({ ...c, check: true })) };
-    const count = Math.min(MAX_QUESTIONS, DEFAULT_QUIZ, all.conditions.length);
-    const { draft: withQuiz } = await post("question", { source, draft: all, type: "open", count }, networkError);
     setAnalyzedSource(source);
-    setDraft(withQuiz);
+    setDraft({ ...analyzed, conditions: analyzed.conditions.map(c => ({ ...c, check: true })), questions: [] });
+    setQuizFor("");
     setPreview(null);
     go(2);
+  });
+  // 2 → 3: write the quiz from the items (kept as is when the items did not change).
+  const itemsKey = draft ? JSON.stringify(draft.conditions.map(c => c.label)) : "";
+  const quizCurrent = Boolean(draft?.questions.length) && quizFor === itemsKey;
+  const makeQuiz = () => run("quiz", async () => {
+    if (!draft) return;
+    if (!quizCurrent) {
+      const count = Math.min(MAX_QUESTIONS, DEFAULT_QUIZ, draft.conditions.length);
+      const { draft: withQuiz } = await post("question", { source: analyzedSource, draft, type: "open", count }, networkError);
+      setDraft(withQuiz);
+      setQuizFor(itemsKey);
+    }
+    go(3);
   });
   // 3 → 4: translate for workers (skipped when nothing changed).
   const translate = () => run("preview", async () => {
@@ -184,7 +198,11 @@ export default function AdminWorkspace() {
   if (step === 2) {
     return (
       <Step index={2} title="작업자에게 전달할 내용" onBack={back}
-        action={<button className="btn-primary w-full !py-3.5" disabled={!itemsReady} onClick={() => go(3)}>다음</button>}>
+        action={
+          <button className="btn-primary w-full !py-3.5" aria-busy={busy === "quiz"} disabled={Boolean(busy) || !itemsReady} onClick={makeQuiz}>
+            {busy === "quiz" ? <><Loading size={20} tone="light" />퀴즈 생성 중</> : quizCurrent ? "다음" : "AI 퀴즈 생성하기"}
+          </button>
+        }>
         <label className="grid gap-1.5 text-sm font-semibold text-ink-2">제목
           <span className="flex items-center gap-2">
             <span className="shrink-0 font-mono text-[15px] font-normal text-ink-3">[{title.date}]</span>

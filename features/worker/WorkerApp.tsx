@@ -8,6 +8,7 @@ import NoticeView, { SituationCard } from "./NoticeView";
 import { post } from "../../ui/request";
 import { useRecognition } from "./speech";
 import Loading, { VoiceWave } from "../../ui/Loading";
+import Chevron from "../../ui/Chevron";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 
 const noSubscription = () => () => {};
@@ -109,7 +110,7 @@ export default function WorkerApp({ id }: { id: string }) {
 
   return (
     <form className="grid gap-4 pt-6" lang={lang} onSubmit={start}>
-      <button type="button" className="btn-text -ml-1 justify-self-start" onClick={() => history.back()}>← {LANGUAGES[lang].native}</button>
+      <button type="button" className="btn-text -ml-1 flex items-center gap-0.5 justify-self-start" onClick={() => history.back()}><Chevron />{LANGUAGES[lang].native}</button>
       <label className="grid gap-3 text-[26px] font-bold tracking-[-0.03em]">{t.namePrompt}
         <input autoFocus value={name} maxLength={40} placeholder={t.namePlaceholder} className="!py-3.5 !text-[18px]"
           onChange={e => setName(e.target.value)} />
@@ -246,7 +247,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   return (
     <div className="grid gap-4" lang={lang}>
       {progress}
-      <button type="button" className="btn-text -ml-1 justify-self-start" onClick={() => go("read")}>← {t.backToNotice}</button>
+      <button type="button" className="btn-text -ml-1 flex items-center gap-0.5 justify-self-start" onClick={() => go("read")}><Chevron />{t.backToNotice}</button>
       <div className="grid gap-5" aria-live="polite">
         {shown.map(q => {
           const index = questions.indexOf(q);
