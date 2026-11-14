@@ -116,7 +116,7 @@ export default function WorkerApp({ id }: { id: string }) {
           onChange={e => setName(e.target.value)} />
       </label>
       {error && <p role="alert" className="rounded-[10px] bg-bad-bg px-4 py-3 text-sm font-semibold text-bad-fg">{error}</p>}
-      <button className="btn-primary w-full !py-3 text-[16px]" aria-busy={busy} disabled={busy || !name.trim()}>{busy ? <><Loading size={24} tone="light" />{t.starting}</> : t.start}</button>
+      <button className="btn-primary w-full !py-4 text-[16px]" aria-busy={busy} disabled={busy || !name.trim()}>{busy ? <><Loading size={24} tone="light" />{t.starting}</> : t.start}</button>
     </form>
   );
 }
@@ -237,7 +237,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
         {progress}
         <NoticeView notice={view.notice} t={t} showQuestion={false} />
         <div className="sticky bottom-3 pt-2">
-          <button type="button" className="btn-primary w-full !py-3 text-[16px]" onClick={() => go("answer")}>
+          <button type="button" className="btn-primary w-full !py-4 text-[16px]" onClick={() => go("answer")}>
             {t.readDone}
           </button>
         </div>
