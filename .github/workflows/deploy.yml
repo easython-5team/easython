@@ -1,6 +1,6 @@
-# Every push to dev (a merged PR) is checked and deployed to the EC2 server.
-# SSH is closed to the internet: the job opens port 22 for its own IP only for
-# the length of the deploy, using a role that can do nothing else.
+# Every push to dev (a merged PR) is checked, built once here, and shipped to
+# the EC2 server as a compressed standalone bundle. The server only unpacks and
+# restarts. SSH is opened for this runner's IP only while the deploy runs.
 name: Deploy
 
 on:
@@ -17,24 +17,34 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'features/**', 'server/**', 'shared/**', 'ui/**') }}
+          restore-keys: next-${{ hashFiles('package-lock.json') }}-
+
       - run: npm ci --no-audit --no-fund
-      - run: npm run typecheck
+
+      # next build also type-checks, so only the checks it does not cover run here.
       - run: npm run check:compiler
       - run: npm test
 
-  deploy:
-    needs: check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Build standalone bundle
+        run: |
+          npm run build
+          cp -r .next/static .next/standalone/.next/
+          tar -czf bundle.tgz -C .next/standalone .
+          ls -lh bundle.tgz
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -49,16 +59,16 @@ jobs:
           aws ec2 authorize-security-group-ingress --group-id "${{ vars.EC2_SG_ID }}" \
             --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$IP/32,Description=github-actions}]"
 
-      - name: Upload and build on the server
+      - name: Ship and restart
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
           printf '%s\n' "${{ vars.EC2_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          # The script goes first; the source archive is then streamed into it.
-          scp -i ~/.ssh/deploy scripts/deploy-server.sh "ec2-user@${{ vars.EC2_HOST }}:/tmp/deploy-server.sh"
-          git archive --format=tar.gz HEAD | ssh -i ~/.ssh/deploy "ec2-user@${{ vars.EC2_HOST }}" 'bash /tmp/deploy-server.sh'
+          HOST="ec2-user@${{ vars.EC2_HOST }}"
+          scp -i ~/.ssh/deploy scripts/deploy-server.sh "$HOST:/tmp/deploy-server.sh"
+          ssh -i ~/.ssh/deploy "$HOST" 'bash /tmp/deploy-server.sh' < bundle.tgz
 
       - name: Close SSH again
         if: always() && steps.ip.outputs.ip != ''
