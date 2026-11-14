@@ -298,7 +298,7 @@ export default function AdminWorkspace() {
         <div className="max-h-[620px] overflow-y-auto rounded-[32px] bg-canvas px-3 pt-8 pb-4">
           <NoticeView t={WORKER_TEXT[previewLang]}
             notice={{
-              ...translation, lang: previewLang, addenda: [],
+              ...translation, lang: previewLang, source: analyzedSource, addenda: [],
               conditions: translation.conditions.map(c => ({ ...c, kind: kinds.get(c.id) })),
               questions: translation.questions.map(q => ({ ...q, type: types.get(q.id) ?? "open" })),
             }} />

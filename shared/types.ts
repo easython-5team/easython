@@ -177,6 +177,8 @@ export interface WorkerNotice {
   version: number;
   title: string;
   summary: string;
+  /** The Korean original, shown on request. */
+  source: string;
   questions: Array<TranslatedQuestion & { type: QuestionType }>;
   conditions: WorkerCondition[];
   addenda: Array<QA & { id: string }>;
