@@ -1,4 +1,5 @@
 import Shell from "../ui/Shell";
+import Splash from "../ui/Splash";
 import { recentNotices } from "../server/db/store.ts";
 import { dashboardView } from "../server/workflow.ts";
 import { formatTime } from "../shared/time.ts";
@@ -10,6 +11,7 @@ export default function Home() {
   const notices = recentNotices(50).map(n => ({ ...n, stats: dashboardView(n.id).stats }));
   return (
     <Shell>
+      <Splash />
       <main className="mx-auto grid w-full max-w-[640px] gap-6 px-4 pt-8 pb-20 sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <h1>공지</h1>
