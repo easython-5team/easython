@@ -117,7 +117,7 @@ function WorkerRow({ worker, notice, pending, id, open, toggle }: {
             <div key={turn.turn} className="grid gap-1.5 border-l-2 border-grid pl-3 text-sm">
               <p className="text-[13px] text-ink-3">Q{questionNo(turn.questionId)}. {notice.draft.questions.find(q => q.id === turn.questionId)?.text}</p>
               <p><span className="mr-1.5 text-ink-3">답</span>{turn.inputKo}</p>
-              <p className="text-[13px] text-ink-3">{TURN_STATE[turn.state]}{turn.mode === "voice" && " · 음성"}</p>
+              <p className="text-[13px] text-ink-3">{TURN_STATE[turn.state]}</p>
               {turn.state !== "answered" && turn.state !== "manager" && turn.assessment.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {turn.assessment.map(a => (

@@ -2,12 +2,9 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import animation from "./lottie/loading.json";
-import voice from "./lottie/voice.json";
 
 // "Loading" by khan cindy, LottieFiles (Lottie Simple License):
 // https://lottiefiles.com/free-animation/loading-1iEs7DAHLF
-// "voice" by Subvarine Van, LottieFiles (Lottie Simple License), recoloured to ink:
-// https://lottiefiles.com/free-animation/voice-XqGAJYnkFm
 
 // lottie-web touches the DOM when imported, so it is loaded only in the browser.
 // Kept outside the component: the React Compiler cannot compile import().
@@ -53,15 +50,3 @@ export default function Loading({ size: sizeProp, tone: toneProp, className: cla
   );
 }
 
-/** Moving sound bars shown while the microphone is listening. */
-export function VoiceWave() {
-  const box = useRef<HTMLSpanElement>(null);
-  useLottie(box, voice, 5);
-
-  // The source canvas is mostly empty space, so a larger square is cropped to the bars.
-  return (
-    <span aria-hidden="true" className="relative -my-0.5 inline-block h-[22px] w-6 shrink-0 overflow-hidden">
-      <span ref={box} className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2" />
-    </span>
-  );
-}

@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { LANGUAGES, WORKER_LANGS, WORKER_TEXT, type Lang, type WorkerText } from "../../shared/languages.ts";
 import { progress as questionProgress } from "../../shared/questions.ts";
-import type { InputMode, SessionView, WorkerTurn } from "../../shared/types.ts";
+import type { SessionView, WorkerTurn } from "../../shared/types.ts";
 import NoticeView, { SituationCard } from "./NoticeView";
 import { post } from "../../ui/request";
-import { useRecognition } from "./speech";
-import Loading, { VoiceWave } from "../../ui/Loading";
+import Loading from "../../ui/Loading";
 import Chevron from "../../ui/Chevron";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 import { slideTo } from "../../ui/slide.ts";
@@ -142,7 +141,6 @@ interface ConversationProps {
 
 function Conversation({ id, sessionId, view, setView, reload, t, lang }: ConversationProps) {
   const [answer, setAnswer] = useState("");
-  const [mode, setMode] = useState<InputMode>("text");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // One job per screen: read the notice first, then answer. A returning worker
@@ -151,10 +149,6 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   const [slide, setSlide] = useState("");
   const running = useRef(false);
   const bottom = useRef<HTMLDivElement>(null);
-  const recognition = useRecognition(lang, text => {
-    setAnswer(current => (current.trim() ? current.trim() + " " : "") + text);
-    setMode("voice");
-  });
 
   const turns = view.turns;
   const questions = view.notice.questions;
@@ -185,12 +179,10 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     running.current = true;
     setBusy(true);
     setError("");
-    recognition.stop();
     try {
-      const result = await post("respond", { id, sessionId, turn: turns.length, answer: text, mode }, t.retry);
+      const result = await post("respond", { id, sessionId, turn: turns.length, answer: text }, t.retry);
       setView({ ...view, turns: [...turns, result] });
       setAnswer("");
-      setMode("text");
       if (result.state === "manager") reload(sessionId).catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : t.retry);
@@ -202,7 +194,6 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   // The quiz is a history entry, so the phone's back button returns to the notice.
   useEffect(() => {
     const onPop = (event: PopStateEvent) => {
-      recognition.stop();
       const next = (event.state as { w?: unknown } | null)?.w === "answer" ? "answer" : "read";
       slideTo(next === "read" ? "back" : "forward", () => {
         setSlide(next === "read" ? "slide-back" : "slide-forward");
@@ -212,9 +203,8 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [recognition]);
+  }, []);
   function go(next: "read" | "answer") {
-    recognition.stop();
     if (next === "answer") {
       history.pushState({ ...history.state, w: "answer" }, "");
       slideTo("forward", () => {
@@ -261,8 +251,6 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   }
 
   const answers = new Map(view.escalations.map(e => [e.turn, e.answer]));
-  const speechError = recognition.error === "" ? "" : recognition.error === "denied" ? t.speechDenied
-    : recognition.error === "unsupported" ? t.speechUnsupported : t.speechFailed;
 
   return (
     <div key="answer" className={"grid gap-4 " + slide} lang={lang}>
@@ -279,7 +267,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
               return (
                 <div className="grid gap-2" key={turn.turn}>
                   <div className="max-w-[88%] justify-self-end rounded-bubble rounded-br-sm bg-ink px-4 py-3 text-white">
-                    <span className="block text-xs font-bold text-ink-3">{t.you}{turn.mode === "voice" && <> · {t.viaVoice}</>}</span>
+                    <span className="block text-xs font-bold text-ink-3">{t.you}</span>
                     <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.answer}</p>
                   </div>
                   <div className={"max-w-[94%] rounded-bubble rounded-bl-sm p-4 text-ink " + TURN_BG[turn.state]}>
@@ -325,32 +313,13 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
             {latest === "followup" ? t.states.followup : results.size > 0 && !latest ? t.nextQuestion : t.yourAnswer}
           </label>
           {open?.type === "short" && <p className="text-[13px] text-ink-2">{t.shortHint}</p>}
-          <textarea id="answer" rows={3} value={recognition.listening ? recognition.interim || answer : answer}
-            placeholder={t.placeholder} disabled={busy || recognition.listening} className="!bg-paper text-[17px]"
-            onChange={e => { setAnswer(e.target.value); if (!e.target.value) setMode("text"); }} />
-          {mode === "voice" && answer && !recognition.listening && <p className="text-[13px] font-semibold text-time">{t.speechReview}</p>}
-          {speechError && <p className="text-[13px] font-semibold text-stop">{speechError}</p>}
+          <textarea id="answer" rows={3} value={answer}
+            placeholder={t.placeholder} disabled={busy} className="!bg-paper text-[17px]"
+            onChange={e => setAnswer(e.target.value)} />
           {error && <p role="alert" className="rounded-[10px] bg-bad-bg px-4 py-3 text-sm font-semibold text-bad-fg">{error}</p>}
-          <div className="grid grid-cols-2 gap-2">
-            {recognition.supported ? (
-              <button type="button" disabled={busy} aria-pressed={recognition.listening}
-                aria-label={recognition.listening ? t.listening : undefined}
-                className={recognition.listening ? "btn-primary !bg-stop" : "btn-secondary"}
-                onClick={() => (recognition.listening ? recognition.stop() : recognition.start())}>
-                {recognition.listening ? <VoiceWave /> : (
-                  <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[18px] shrink-0" fill="none" stroke="currentColor"
-                    strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="9" y="2.5" width="6" height="12" rx="3" fill="currentColor" />
-                    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
-                  </svg>
-                )}
-                {!recognition.listening && t.speak}
-              </button>
-            ) : <p className="self-center text-[13px] text-ink-2">{t.speechUnsupported}</p>}
-            <button className="btn-primary" aria-busy={busy} disabled={busy || recognition.listening || !answer.trim()}>
-              {busy ? <><Loading size={22} tone="light" />{t.checking}</> : t.send}
-            </button>
-          </div>
+          <button className="btn-primary" aria-busy={busy} disabled={busy || !answer.trim()}>
+            {busy ? <><Loading size={22} tone="light" />{t.checking}</> : t.send}
+          </button>
         </form>
       )}
       {/* After the answer box so the newest reply scrolls into view above it, not under it. */}
