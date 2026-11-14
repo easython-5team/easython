@@ -6,8 +6,12 @@ import Chevron from "../../ui/Chevron";
 // A quiz question as one thick button; opening it shows the answer below.
 // `question` is the plain text (the whole row toggles) or an editor node
 // (only the chevron toggles, so typing does not open and close it).
-export default function QuizAnswer({ question, label, answer }: { question: ReactNode; label: string; answer: ReactNode }) {
-  const [open, setOpen] = useState(false);
+export default function QuizAnswer({ question, label, answer, defaultOpen }: {
+  question: ReactNode; label: string; answer: ReactNode;
+  /** Starts open, e.g. when the answer still has to be written. */
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen ?? false);
   const panelId = useId();
   const chevron = <Chevron className={"size-5 text-ink-2 transition-transform " + (open ? "rotate-90" : "-rotate-90")} />;
   const toggle = { "aria-expanded": open, "aria-controls": panelId, onClick: () => setOpen(o => !o) };
