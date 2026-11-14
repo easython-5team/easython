@@ -10,7 +10,7 @@ import {
   recordTurn, resolveEscalation, savePreview, sessionEscalations, workerNotice,
 } from "./db/store.ts";
 import type {
-  Assessed, DashboardView, Draft, InputMode, Notice, PreviewResult, SessionView, Translation, Translations, Turn,
+  Assessed, DashboardView, Draft, Notice, PreviewResult, SessionView, Translation, Translations, Turn,
   WorkerNotice, WorkerStatus, WorkerTurn,
 } from "../shared/types.ts";
 
@@ -66,7 +66,7 @@ export function join(noticeId: string, name: string, lang: Lang): string {
 function workerTurn(turn: Turn, notice: Notice, lang: Lang): WorkerTurn {
   const texts = new Map(notice.translations[lang].conditions.map(c => [c.id, c.text]));
   return {
-    turn: turn.turn, questionId: turn.questionId, answer: turn.answer, mode: turn.mode, state: turn.state, message: turn.message,
+    turn: turn.turn, questionId: turn.questionId, answer: turn.answer, state: turn.state, message: turn.message,
     conditions: turn.state === "answered" || turn.state === "manager" ? []
       : turn.assessment.map(c => ({ id: c.id, status: c.status, text: texts.get(c.id) ?? "" })),
   };
@@ -94,8 +94,8 @@ export function sessionView(noticeId: string, sessionId: string): SessionView {
 
 const pending = new Map<string, { answer: string; result: Promise<WorkerTurn> }>();
 
-export async function respond({ noticeId, sessionId, turn, answer, mode }: {
-  noticeId: string; sessionId: string; turn: number; answer: string; mode: InputMode;
+export async function respond({ noticeId, sessionId, turn, answer }: {
+  noticeId: string; sessionId: string; turn: number; answer: string;
 }): Promise<WorkerTurn> {
   const session = ownSession(noticeId, sessionId);
   const notice = loadNotice(noticeId);
@@ -131,7 +131,7 @@ export async function respond({ noticeId, sessionId, turn, answer, mode }: {
       verdict, assessment, history: asked, text: WORKER_TEXT[lang], conditionText: id => texts.get(id) ?? "",
     });
     const saved = recordTurn(sessionId, turn, {
-      questionId: question.id, answer, mode, state: decision.state, message: decision.message, assessment,
+      questionId: question.id, answer, state: decision.state, message: decision.message, assessment,
       inputKo: verdict.inputKo, version: notice.version,
     }, decision.escalate ? { noticeId } : null);
     return workerTurn(saved, notice, lang);

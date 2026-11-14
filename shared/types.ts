@@ -100,13 +100,11 @@ export interface Assessed {
 }
 
 export type TurnState = "understood" | "followup" | "guidance" | "answered" | "manager";
-export type InputMode = "voice" | "text";
 
 export interface TurnRecord {
   /** The question this turn answers. */
   questionId: string;
   answer: string;
-  mode: InputMode;
   state: TurnState;
   message: string;
   assessment: Assessed[];
@@ -188,7 +186,6 @@ export interface WorkerTurn {
   turn: number;
   questionId: string;
   answer: string;
-  mode: InputMode;
   state: TurnState;
   message: string;
   conditions: Array<{ id: string; status: CheckStatus; text: string }>;

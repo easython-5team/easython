@@ -33,7 +33,7 @@ export const actions = {
     if (typeof body.turn !== "number" || !Number.isSafeInteger(body.turn) || body.turn < 0) throw invalid("Invalid turn.");
     return respond({
       noticeId: id(body.id), sessionId: id(body.sessionId), turn: body.turn,
-      answer: field(body.answer, "Answer", 1000), mode: body.mode === "voice" ? "voice" : "text",
+      answer: field(body.answer, "Answer", 1000),
     });
   },
 } satisfies Record<string, (body: Body) => Promise<unknown>>;

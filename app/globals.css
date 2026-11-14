@@ -95,6 +95,25 @@ html[data-slide="forward"]::view-transition-new(root) { animation-name: page-in-
 html[data-slide="back"]::view-transition-old(root) { animation-name: page-out-right; }
 html[data-slide="back"]::view-transition-new(root) { animation-name: page-in-left; }
 
+/* Splash on the admin home (ui/Splash.tsx): logo rises in, holds, then the whole layer fades away. */
+.splash {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: #121212; color: #fff; cursor: pointer;
+  animation: splash-out 400ms ease-in 1100ms forwards;
+}
+html[data-splash="off"] .splash { display: none; }
+.splash-logo { margin-bottom: 8px; animation: splash-pop 520ms cubic-bezier(.2,.8,.2,1) both; }
+.splash-name { animation: splash-rise 480ms cubic-bezier(.2,.8,.2,1) 120ms both; }
+.splash-tag { animation: splash-rise 480ms cubic-bezier(.2,.8,.2,1) 220ms both; }
+@keyframes splash-pop { from { opacity: 0; transform: scale(.7); } }
+@keyframes splash-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes splash-out { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo, .splash-name, .splash-tag { animation: none; }
+  .splash { animation-duration: 200ms; animation-delay: 600ms; }
+}
+
 @media print {
   body * { visibility: hidden; }
   .poster, .poster * { visibility: visible; }

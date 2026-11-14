@@ -3,8 +3,8 @@
 import type { ConditionKind } from "./types.ts";
 
 export const LANGUAGES = {
-  en: { name: "English", native: "English", speech: "en-US" },
-  vi: { name: "Vietnamese", native: "Tiếng Việt", speech: "vi-VN" },
+  en: { name: "English", native: "English" },
+  vi: { name: "Vietnamese", native: "Tiếng Việt" },
 } as const;
 export type Lang = keyof typeof LANGUAGES;
 export const WORKER_LANGS = Object.keys(LANGUAGES) as Lang[];
@@ -38,17 +38,10 @@ const en = {
   yourAnswer: "Your answer",
   answerHint: "Say or type what you will do. You can also ask a question.",
   placeholder: "Type your answer or ask a question",
-  speak: "Speak",
-  listening: "Listening… tap to stop",
-  speechReview: "Check the text before submitting.",
-  speechUnsupported: "Voice input is not available in this browser. Please type your answer.",
-  speechDenied: "Microphone access was blocked. Please type your answer.",
-  speechFailed: "Could not hear you clearly. Try again or type your answer.",
   send: "Submit",
   checking: "Checking…",
   retry: "Could not send your answer. Please try again.",
   you: "You",
-  viaVoice: "voice",
   states: {
     understood: "Understanding confirmed",
     followup: "One more question",
@@ -96,17 +89,10 @@ export const WORKER_TEXT: Record<Lang, WorkerText> = {
     yourAnswer: "Câu trả lời của bạn",
     answerHint: "Hãy nói hoặc viết bạn sẽ làm gì. Bạn cũng có thể đặt câu hỏi.",
     placeholder: "Nhập câu trả lời hoặc đặt câu hỏi",
-    speak: "Nói",
-    listening: "Đang nghe… chạm để dừng",
-    speechReview: "Kiểm tra văn bản trước khi gửi.",
-    speechUnsupported: "Trình duyệt này không hỗ trợ nhập bằng giọng nói. Vui lòng nhập câu trả lời.",
-    speechDenied: "Micrô đã bị chặn. Vui lòng nhập câu trả lời.",
-    speechFailed: "Không nghe rõ. Hãy thử lại hoặc nhập câu trả lời.",
     send: "Gửi",
     checking: "Đang kiểm tra…",
     retry: "Không gửi được câu trả lời. Vui lòng thử lại.",
     you: "Bạn",
-    viaVoice: "giọng nói",
     states: {
       understood: "Đã xác nhận hiểu đúng",
       followup: "Thêm một câu hỏi",

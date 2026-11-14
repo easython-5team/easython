@@ -60,7 +60,6 @@ function database(): DatabaseSync {
         turn INTEGER NOT NULL,
         question_id TEXT NOT NULL DEFAULT 'q1',
         answer TEXT NOT NULL,
-        mode TEXT NOT NULL,
         state TEXT NOT NULL,
         message TEXT NOT NULL,
         assessment TEXT NOT NULL,
@@ -85,6 +84,8 @@ function database(): DatabaseSync {
     // Databases created before multiple questions lack the column.
     const columns = db.prepare("PRAGMA table_info(turns)").all() as Array<{ name: string }>;
     if (!columns.some(c => c.name === "question_id")) db.exec("ALTER TABLE turns ADD COLUMN question_id TEXT NOT NULL DEFAULT 'q1'");
+    // Voice input was removed; older databases still have its column.
+    if (columns.some(c => c.name === "mode")) db.exec("ALTER TABLE turns DROP COLUMN mode");
   } catch (error) {
     db.close();
     throw error;
@@ -133,7 +134,7 @@ interface NoticeRow extends PreviewRow { id: string; version: number; created_at
 interface AddendumRow { id: string; version: number; question_ko: string; answer_ko: string; translations: string; created_at: string }
 interface SessionRow { id: string; notice_id: string; name: string; lang: Lang; created_at: string }
 interface TurnRow {
-  turn: number; question_id: string; answer: string; mode: Turn["mode"]; state: Turn["state"]; message: string;
+  turn: number; question_id: string; answer: string; state: Turn["state"]; message: string;
   assessment: string; input_ko: string; notice_version: number; created_at: string;
 }
 interface EscalationRow {
@@ -214,7 +215,7 @@ export function getSession(id: string): Session | undefined {
 
 function turnRow(row: TurnRow): Turn {
   return {
-    turn: row.turn, questionId: row.question_id, answer: row.answer, mode: row.mode, state: row.state, message: row.message,
+    turn: row.turn, questionId: row.question_id, answer: row.answer, state: row.state, message: row.message,
     assessment: parse<Turn["assessment"]>(row.assessment), inputKo: row.input_ko, version: row.notice_version, createdAt: row.created_at,
   };
 }
@@ -228,9 +229,9 @@ export function getTurns(sessionId: string): Turn[] {
 export function recordTurn(sessionId: string, turn: number, record: TurnRecord, escalation: { noticeId: string } | null): Turn {
   return transaction(() => {
     const inserted = run(`
-      INSERT INTO turns (session_id, turn, question_id, answer, mode, state, message, assessment, input_ko, notice_version)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (session_id, turn) DO NOTHING
-    `, sessionId, turn, record.questionId, record.answer, record.mode, record.state, record.message,
+      INSERT INTO turns (session_id, turn, question_id, answer, state, message, assessment, input_ko, notice_version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (session_id, turn) DO NOTHING
+    `, sessionId, turn, record.questionId, record.answer, record.state, record.message,
     JSON.stringify(record.assessment), record.inputKo, record.version);
     if (inserted.changes && escalation) {
       run("INSERT INTO escalations (id, notice_id, session_id, turn, question, question_ko) VALUES (?, ?, ?, ?, ?, ?)",
