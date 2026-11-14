@@ -43,6 +43,14 @@ export async function analyzeNotice(source: string): Promise<Draft> {
   };
 }
 
+const QUESTION_BY_KIND: Record<ConditionKind, string> = {
+  prohibition: "변경 후 하면 안 되는 작업은 무엇인가요?",
+  place: "어디에서 작업해야 하나요?",
+  time: "언제부터 바뀌나요?",
+  exception: "예외로 허용되는 경우는 언제인가요?",
+  action: "무엇을 해야 하나요?",
+};
+
 // One question per checked condition in turn, repeating when more are asked for.
 export async function writeQuestions(_source: string, draft: Draft, { type, count }: QuestionRequest): Promise<Question[]> {
   const checked = draft.conditions.filter(c => c.check);
@@ -51,9 +59,9 @@ export async function writeQuestions(_source: string, draft: Draft, { type, coun
     const label = c?.label ?? "";
     return {
       id: "q" + (i + 1), type, conditionIds: c ? [c.id] : [],
-      text: type === "short" ? `‘${label}’ — 그래서 무엇을 하나요? 짧게 답해 주세요.` : `‘${label}’ — 이 변경 사항이 적용되면 무엇을 어떻게 하겠어요?`,
+      text: QUESTION_BY_KIND[c?.kind ?? "action"],
       answer: type === "short" ? label.slice(0, 20) : "",
-      reason: "개발용 가짜 AI가 만든 질문이에요. OPENAI_API_KEY를 설정하면 실제 AI가 만들어요.",
+      reason: "개발용 가짜 AI가 만든 질문입니다.",
     };
   });
 }

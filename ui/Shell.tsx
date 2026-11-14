@@ -9,16 +9,21 @@ interface ShellProps {
 export default function Shell({ worker: workerProp, lang: langProp, children }: ShellProps) {
   const worker = workerProp ?? false;
   const lang = langProp ?? "ko";
-  const width = worker ? "max-w-[560px]" : "max-w-[1320px]";
+  const width = worker ? "max-w-[560px]" : "max-w-[960px]";
   return (
     <div lang={lang} className="min-h-dvh">
-      <header>
-        <div className={"mx-auto flex h-16 items-center justify-between gap-3 px-4 sm:px-6 " + width}>
-          <a className="flex items-center gap-2.5 text-ink no-underline" href={worker ? undefined : "/"}>
-            <img src="/icon.svg" alt="" aria-hidden="true" className="size-8" />
-            <span className="text-xl font-black tracking-[-0.06em]">현장노트</span>
-            {!worker && <span className="hidden text-sm font-semibold text-ink-2 sm:inline">읽음에서 이해로</span>}
+      <header className="border-b border-grid bg-paper">
+        <div className={"mx-auto flex h-14 items-center justify-between gap-3 px-4 sm:px-6 " + width}>
+          <a className="flex items-center gap-2 text-ink no-underline" href={worker ? undefined : "/"}>
+            <img src="/icon.svg" alt="" aria-hidden="true" className="size-6" />
+            <span className="text-[17px] font-bold tracking-[-0.03em]">현장노트</span>
           </a>
+          {!worker && (
+            <nav className="flex items-center gap-1 text-sm font-semibold">
+              <a className="rounded-lg px-3 py-1.5 text-ink-2 no-underline hover:bg-canvas hover:text-ink" href="/">새 공지</a>
+              <a className="rounded-lg px-3 py-1.5 text-ink-2 no-underline hover:bg-canvas hover:text-ink" href="/notices">보낸 공지</a>
+            </nav>
+          )}
         </div>
       </header>
       {children}

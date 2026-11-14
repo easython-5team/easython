@@ -13,7 +13,7 @@ export default async function WorkerPage({ params }: PageProps<"/n/[id]">) {
   if (!getNotice(id)) notFound();
   return (
     <Shell worker lang="en">
-      <main className="mx-auto w-full max-w-[560px] px-4 pt-2 pb-16">
+      <main className="mx-auto w-full max-w-[560px] px-4 pt-5 pb-16">
         <WorkerApp id={id} />
       </main>
     </Shell>

@@ -1,37 +1,37 @@
 // Meaning → color. Every screen takes its condition and status colors from here
-// so a color always means the same thing (see the design-tone spec).
+// so a color always means the same thing.
 import type { CheckStatus, ConditionKind, TurnState } from "../shared/types.ts";
 
 export const KIND_BG: Record<ConditionKind, string> = {
-  time: "bg-time text-white",
-  place: "bg-place text-ink",
-  action: "bg-action text-ink",
-  prohibition: "bg-stop text-ink",
-  exception: "bg-except text-ink",
+  time: "bg-info-bg text-info-fg",
+  place: "bg-violet-bg text-violet-fg",
+  action: "bg-ok-bg text-ok-fg",
+  prohibition: "bg-bad-bg text-bad-fg",
+  exception: "bg-warn-bg text-warn-fg",
 };
 
 export const CHECK_BG: Record<CheckStatus, string> = {
-  met: "bg-action text-ink",
-  missing: "bg-except text-ink",
-  conflict: "bg-stop text-ink",
+  met: "bg-ok-bg text-ok-fg",
+  missing: "bg-warn-bg text-warn-fg",
+  conflict: "bg-bad-bg text-bad-fg",
 };
 
 export const CHECK_ICON: Record<CheckStatus, string> = { met: "✓", missing: "?", conflict: "✕" };
 
 export const TURN_BG: Record<TurnState, string> = {
-  understood: "bg-action",
-  followup: "bg-except",
-  guidance: "bg-stop",
-  answered: "bg-white",
-  manager: "bg-place",
+  understood: "bg-ok-bg",
+  followup: "bg-warn-bg",
+  guidance: "bg-bad-bg",
+  answered: "bg-white border border-grid",
+  manager: "bg-violet-bg",
 };
 
 export type Tone = "ok" | "bad" | "mid" | "idle" | "wait";
 
 export const TONE_BG: Record<Tone, string> = {
-  ok: "bg-action text-ink",
-  bad: "bg-stop text-ink",
-  mid: "bg-except text-ink",
-  idle: "bg-grid text-ink-2",
-  wait: "bg-place text-ink",
+  ok: "bg-ok-bg text-ok-fg",
+  bad: "bg-bad-bg text-bad-fg",
+  mid: "bg-warn-bg text-warn-fg",
+  idle: "bg-canvas text-ink-2",
+  wait: "bg-violet-bg text-violet-fg",
 };

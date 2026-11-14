@@ -10,7 +10,6 @@ import { useRecognition } from "./speech";
 import Loading, { VoiceWave } from "../../ui/Loading";
 import { CHECK_BG, CHECK_ICON, TURN_BG } from "../../ui/tone.ts";
 
-const LANG_BG = ["bg-time text-white", "bg-except text-ink", "bg-action text-ink", "bg-place text-ink"];
 const noSubscription = () => () => {};
 
 function storageKey(id: string) {
@@ -79,15 +78,14 @@ export default function WorkerApp({ id }: { id: string }) {
 
   if (!lang) {
     return (
-      <section className="grid gap-6 pt-4">
+      <section className="grid gap-5 pt-6">
         <h1 lang="en">{WORKER_TEXT.en.chooseLanguage}</h1>
-        <div className="grid gap-3">
-          {WORKER_LANGS.map((code, i) => (
+        <div className="grid divide-y divide-grid overflow-hidden rounded-card border border-grid bg-paper">
+          {WORKER_LANGS.map(code => (
             <button key={code} type="button" lang={code} onClick={() => setLang(code)}
-              className={"flex min-h-28 cursor-pointer items-end justify-between rounded-card p-6 text-left transition active:translate-y-px "
-                + (LANG_BG[i % LANG_BG.length] ?? "")}>
-              <span className="text-[28px] font-black tracking-[-0.05em]">{LANGUAGES[code].native}</span>
-              <span className="tag bg-white/70">{code.toUpperCase()}</span>
+              className="flex cursor-pointer items-center justify-between px-5 py-4 text-left text-[18px] font-semibold hover:bg-canvas active:bg-canvas">
+              {LANGUAGES[code].native}
+              <span aria-hidden="true" className="text-ink-3">›</span>
             </button>
           ))}
         </div>
@@ -96,14 +94,13 @@ export default function WorkerApp({ id }: { id: string }) {
   }
 
   return (
-    <form className="grid gap-4 pt-2" lang={lang} onSubmit={start}>
+    <form className="grid gap-4 pt-6" lang={lang} onSubmit={start}>
       <button type="button" className="btn-text justify-self-start" onClick={() => setLang(null)}>← {LANGUAGES[lang].native}</button>
-      <label className="grid gap-3 text-[22px] font-black tracking-[-0.04em]">{t.namePrompt}
-        <input autoFocus value={name} maxLength={40} placeholder={t.namePlaceholder} className="!py-4 !text-[19px] font-semibold"
+      <label className="grid gap-3 text-[26px] font-bold tracking-[-0.03em]">{t.namePrompt}
+        <input autoFocus value={name} maxLength={40} placeholder={t.namePlaceholder} className="!py-3.5 !text-[18px]"
           onChange={e => setName(e.target.value)} />
       </label>
-      <p className="text-sm text-ink-2">{t.nameHint}</p>
-      {error && <p role="alert" className="rounded-2xl bg-stop/20 px-4 py-3 text-sm font-semibold text-ink">{error}</p>}
+      {error && <p role="alert" className="rounded-[10px] bg-bad-bg px-4 py-3 text-sm font-semibold text-bad-fg">{error}</p>}
       <button className="btn-primary w-full !py-4 text-[17px]" aria-busy={busy} disabled={busy || !name.trim()}>{busy ? <><Loading size={24} tone="light" />{t.starting}</> : t.start}</button>
     </form>
   );
@@ -189,7 +186,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
       {[t.steps.read, t.steps.answer, t.steps.done].map((label, i) => (
         <li key={label} aria-current={i === stage ? "step" : undefined}
           className={"grid gap-1.5 text-xs font-bold " + (i <= stage ? "text-ink" : "text-ink-3")}>
-          <span aria-hidden="true" className={"h-1.5 rounded-full " + (i < stage ? "bg-action" : i === stage ? "bg-ink" : "bg-grid")} />
+          <span aria-hidden="true" className={"h-1 rounded-full " + (i <= stage ? "bg-ink" : "bg-grid")} />
           {label}
         </li>
       ))}
@@ -202,8 +199,8 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
         {progress}
         <NoticeView notice={view.notice} t={t} showQuestion={false} />
         <div className="sticky bottom-3 pt-2">
-          <button type="button" className="btn-primary w-full !py-4 text-[17px] shadow-float" onClick={() => go("answer")}>
-            {t.readDone} →
+          <button type="button" className="btn-primary w-full !py-4 text-[17px]" onClick={() => go("answer")}>
+            {t.readDone}
           </button>
         </div>
       </div>
@@ -228,12 +225,12 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
               const managerAnswer = answers.get(turn.turn);
               return (
                 <div className="grid gap-2" key={turn.turn}>
-                  <div className="max-w-[88%] justify-self-end rounded-bubble rounded-br-md bg-ink px-4 py-3 text-paper">
+                  <div className="max-w-[88%] justify-self-end rounded-bubble rounded-br-sm bg-ink px-4 py-3 text-white">
                     <span className="block text-xs font-bold text-ink-3">{t.you}{turn.mode === "voice" && <> · {t.viaVoice}</>}</span>
                     <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{turn.answer}</p>
                   </div>
-                  <div className={"max-w-[94%] rounded-bubble rounded-bl-md p-4 text-ink shadow-soft " + TURN_BG[turn.state]}>
-                    <strong className="mb-2.5 block text-[15px] font-black tracking-[-0.03em]">{t.states[turn.state]}</strong>
+                  <div className={"max-w-[94%] rounded-bubble rounded-bl-sm p-4 text-ink " + TURN_BG[turn.state]}>
+                    <strong className="mb-2 block text-[15px] font-bold">{t.states[turn.state]}</strong>
                     {turn.conditions.length > 0 && (
                       <ul className="mb-2.5 grid gap-1.5">
                         {turn.conditions.map(c => (
@@ -261,17 +258,17 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
       </div>
 
       {finished ? (
-        <div className={"grid justify-items-center gap-3 rounded-card px-6 py-8 text-center " + (allUnderstood ? "bg-action" : "bg-stop")}>
-          <span aria-hidden="true" className="grid size-14 place-items-center rounded-full bg-ink text-2xl font-black text-paper">
+        <div className="grid justify-items-center gap-3 rounded-card border border-grid bg-paper px-6 py-8 text-center">
+          <span aria-hidden="true" className={"grid size-12 place-items-center rounded-full text-xl font-bold text-white " + (allUnderstood ? "bg-action" : "bg-stop")}>
             {allUnderstood ? "✓" : "!"}
           </span>
-          <p className="text-xl leading-snug font-black tracking-[-0.03em] text-balance">
+          <p className="text-[19px] leading-snug font-bold text-balance">
             {allUnderstood ? t.allDone : t.doneGuidance}
           </p>
         </div>
       ) : (
-        <form className="sticky bottom-3 grid gap-2.5 rounded-card bg-white p-4 shadow-float" onSubmit={submit}>
-          <label htmlFor="answer" className="text-[17px] font-black tracking-[-0.03em]">
+        <form className="sticky bottom-3 grid gap-2.5 rounded-card border border-grid bg-paper p-4 shadow-float" onSubmit={submit}>
+          <label htmlFor="answer" className="text-[15px] font-bold">
             {latest === "followup" ? t.states.followup : results.size > 0 && !latest ? t.nextQuestion : t.yourAnswer}
           </label>
           {open?.type === "short" && <p className="text-[13px] text-ink-2">{t.shortHint}</p>}
@@ -280,12 +277,12 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
             onChange={e => { setAnswer(e.target.value); if (!e.target.value) setMode("text"); }} />
           {mode === "voice" && answer && !recognition.listening && <p className="text-[13px] font-semibold text-time">{t.speechReview}</p>}
           {speechError && <p className="text-[13px] font-semibold text-stop">{speechError}</p>}
-          {error && <p role="alert" className="rounded-2xl bg-stop/20 px-4 py-3 text-sm font-semibold">{error}</p>}
+          {error && <p role="alert" className="rounded-[10px] bg-bad-bg px-4 py-3 text-sm font-semibold text-bad-fg">{error}</p>}
           <div className="grid grid-cols-2 gap-2">
             {recognition.supported ? (
               <button type="button" disabled={busy} aria-pressed={recognition.listening}
                 aria-label={recognition.listening ? t.listening : undefined}
-                className={recognition.listening ? "btn-primary !bg-stop !text-ink" : "btn-secondary"}
+                className={recognition.listening ? "btn-primary !bg-stop" : "btn-secondary"}
                 onClick={() => (recognition.listening ? recognition.stop() : recognition.start())}>
                 {recognition.listening ? <VoiceWave /> : (
                   <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[18px] shrink-0" fill="none" stroke="currentColor"

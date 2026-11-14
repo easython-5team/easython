@@ -1,27 +1,38 @@
 @import "tailwindcss";
 
-/* Field Note Pop — see docs/superpowers/specs/2026-11-13-design-tone.md */
+/* Calm tool tone: white surfaces, hairline borders, color only for status. */
 @theme {
-  --color-canvas: #ede7dd;
-  --color-grid: #e1d9cc;
-  --color-paper: #fbf8f3;
-  --color-ink: #121212;
-  --color-ink-2: #6e6a63;
-  --color-ink-3: #a39e95;
-  --color-time: #3d7bf0;
-  --color-place: #b7a2ea;
-  --color-action: #45bc6a;
-  --color-stop: #f2665a;
-  --color-except: #ffb21e;
+  --color-canvas: #f6f6f4;
+  --color-grid: #e4e4e0;
+  --color-paper: #ffffff;
+  --color-ink: #18181b;
+  --color-ink-2: #62625e;
+  --color-ink-3: #9d9d97;
+
+  /* status hues (dots, bars) and their pale backgrounds (chips, banners) */
+  --color-time: #2563eb;
+  --color-place: #7c5cd6;
+  --color-action: #1f9d55;
+  --color-stop: #dc3c2f;
+  --color-except: #d48806;
+  --color-ok-bg: #e7f5ec;
+  --color-ok-fg: #17663a;
+  --color-bad-bg: #fdecea;
+  --color-bad-fg: #a8261c;
+  --color-warn-bg: #fdf3dc;
+  --color-warn-fg: #7a4d00;
+  --color-info-bg: #e9f0fe;
+  --color-info-fg: #1d47b8;
+  --color-violet-bg: #f0ebfd;
+  --color-violet-fg: #4e35a3;
 
   --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
 
-  --radius-card: 28px;
-  --radius-bubble: 24px;
+  --radius-card: 14px;
+  --radius-bubble: 12px;
 
-  --shadow-soft: 0 6px 24px #2a20140f;
-  --shadow-float: 0 12px 32px #2a201424;
-
+  --shadow-soft: 0 1px 2px #0000000a;
+  --shadow-float: 0 6px 20px #00000014;
 }
 
 @layer base {
@@ -30,35 +41,35 @@
     @apply bg-canvas font-sans text-ink antialiased;
     line-height: 1.55;
   }
-  h1 { @apply text-[clamp(30px,4vw,44px)] leading-[1.1] font-black tracking-[-0.055em]; }
-  h2 { @apply text-xl leading-snug font-extrabold tracking-[-0.04em]; }
-  h3 { @apply text-[15px] font-bold tracking-[-0.02em]; }
-  :focus-visible { outline: 3px solid var(--color-time); outline-offset: 2px; }
+  h1 { @apply text-[26px] leading-[1.3] font-bold tracking-[-0.03em]; }
+  h2 { @apply text-[17px] leading-snug font-bold tracking-[-0.02em]; }
+  h3 { @apply text-[15px] font-semibold tracking-[-0.01em]; }
+  :focus-visible { outline: 2px solid var(--color-time); outline-offset: 2px; }
   code { @apply rounded-md bg-ink/10 px-1.5 text-[.92em]; }
   textarea, input:not([type="checkbox"]), select {
-    @apply w-full min-w-0 rounded-2xl bg-white px-4 py-3 text-[15px] text-ink outline-none;
-    box-shadow: inset 0 0 0 1.5px var(--color-grid);
+    @apply w-full min-w-0 rounded-[10px] bg-white px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-3;
+    box-shadow: inset 0 0 0 1px var(--color-grid);
   }
-  textarea:focus, input:not([type="checkbox"]):focus, select:focus { box-shadow: inset 0 0 0 2px var(--color-ink); }
+  textarea:focus, input:not([type="checkbox"]):focus, select:focus { box-shadow: inset 0 0 0 1.5px var(--color-ink); }
   textarea { @apply block resize-y; }
-  select { @apply w-auto rounded-full px-3 py-1.5 text-[13px] font-bold; }
+  select { @apply w-auto px-3 py-1.5 text-[13px] font-semibold; }
   input[type="checkbox"] { @apply size-[18px] accent-ink; }
   button:disabled { @apply cursor-default opacity-40; }
   /* A button that is working shows its loading animation at full strength. */
   button[aria-busy="true"]:disabled { @apply opacity-100; }
-  details > summary { @apply cursor-pointer font-bold; }
+  details > summary { @apply cursor-pointer font-semibold; }
 }
 
 @layer components {
   .btn-primary, .btn-secondary {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-3 text-[15px] leading-tight font-bold no-underline transition active:translate-y-px;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-[15px] leading-tight font-semibold no-underline transition active:translate-y-px;
   }
-  .btn-primary { @apply bg-ink text-paper hover:enabled:bg-black; }
-  .btn-secondary { @apply bg-white text-ink hover:bg-paper; box-shadow: inset 0 0 0 1.5px var(--color-ink); }
-  .btn-text { @apply cursor-pointer bg-transparent p-1 text-sm font-bold text-ink-2 underline-offset-4 hover:enabled:text-ink hover:enabled:underline; }
-  .tag { @apply inline-block rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap text-ink; }
-  .card { @apply min-w-0 rounded-card bg-paper p-6 shadow-soft; }
-  .eyebrow { @apply text-xs font-bold tracking-wide text-ink-2; }
+  .btn-primary { @apply bg-ink text-white hover:enabled:bg-black; }
+  .btn-secondary { @apply bg-white text-ink hover:bg-canvas; box-shadow: inset 0 0 0 1px var(--color-grid); }
+  .btn-text { @apply cursor-pointer bg-transparent p-1 text-sm font-semibold text-ink-2 underline-offset-4 hover:enabled:text-ink; }
+  .tag { @apply inline-block rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap; }
+  .card { @apply min-w-0 rounded-card border border-grid bg-paper p-6; }
+  .eyebrow { @apply text-xs font-semibold text-ink-2; }
 }
 
 @media print {
