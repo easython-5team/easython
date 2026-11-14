@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* Calm tool tone: white surfaces, hairline borders, color only for status. */
+@theme {
+  --color-canvas: #f6f6f4;
+  --color-grid: #e4e4e0;
+  --color-paper: #ffffff;
+  --color-ink: #18181b;
+  --color-ink-2: #62625e;
+  --color-ink-3: #9d9d97;
+
+  /* status hues (dots, bars) and their pale backgrounds (chips, banners) */
+  --color-time: #2563eb;
+  --color-place: #7c5cd6;
+  --color-action: #1f9d55;
+  --color-stop: #dc3c2f;
+  --color-except: #d48806;
+  --color-ok-bg: #e7f5ec;
+  --color-ok-fg: #17663a;
+  --color-bad-bg: #fdecea;
+  --color-bad-fg: #a8261c;
+  --color-warn-bg: #fdf3dc;
+  --color-warn-fg: #7a4d00;
+  --color-info-bg: #e9f0fe;
+  --color-info-fg: #1d47b8;
+  --color-violet-bg: #f0ebfd;
+  --color-violet-fg: #4e35a3;
+
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+
+  --radius-card: 14px;
+  --radius-bubble: 12px;
+
+  --shadow-soft: 0 1px 2px #0000000a;
+  --shadow-float: 0 6px 20px #00000014;
+}
+
+@layer base {
+  :root { color-scheme: light; }
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    line-height: 1.55;
+  }
+  h1 { @apply text-[26px] leading-[1.3] font-bold tracking-[-0.03em]; }
+  h2 { @apply text-[17px] leading-snug font-bold tracking-[-0.02em]; }
+  h3 { @apply text-[15px] font-semibold tracking-[-0.01em]; }
+  :focus-visible { outline: 2px solid var(--color-time); outline-offset: 2px; }
+  code { @apply rounded-md bg-ink/10 px-1.5 text-[.92em]; }
+  textarea, input:not([type="checkbox"]), select {
+    @apply w-full min-w-0 rounded-[10px] bg-white px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-3;
+    box-shadow: inset 0 0 0 1px var(--color-grid);
+  }
+  textarea:focus, input:not([type="checkbox"]):focus, select:focus { box-shadow: inset 0 0 0 1.5px var(--color-ink); }
+  textarea { @apply block resize-y; }
+  select { @apply w-auto px-3 py-1.5 text-[13px] font-semibold; }
+  input[type="checkbox"] { @apply size-[18px] accent-ink; }
+  button:disabled { @apply cursor-default opacity-40; }
+  /* A button that is working shows its loading animation at full strength. */
+  button[aria-busy="true"]:disabled { @apply opacity-100; }
+  details > summary { @apply cursor-pointer font-semibold; }
+}
+
+@layer components {
+  .btn-primary, .btn-secondary {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[15px] leading-tight font-semibold no-underline select-none;
+    transition: transform 120ms ease-out, background-color 150ms, box-shadow 150ms;
+  }
+  .btn-primary:active:not(:disabled), .btn-secondary:active:not(:disabled) { transform: scale(0.96); }
+  .btn-primary { @apply bg-ink text-white hover:enabled:bg-black; }
+  .btn-secondary { @apply bg-white text-ink hover:bg-canvas; box-shadow: inset 0 0 0 1px var(--color-grid); }
+  .btn-text { @apply cursor-pointer bg-transparent p-1 text-sm font-semibold text-ink-2 underline-offset-4 hover:enabled:text-ink; }
+  .tag { @apply inline-block rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap; }
+  .card { @apply min-w-0 rounded-card border border-grid bg-paper p-6; }
+  .eyebrow { @apply text-xs font-semibold text-ink-2; }
+}
+
+/* Moving forward slides the next screen in from the right; going back, from the left. */
+@keyframes slide-from-right { from { opacity: 0; transform: translateX(32px); } }
+@keyframes slide-from-left { from { opacity: 0; transform: translateX(-32px); } }
+@media (prefers-reduced-motion: no-preference) {
+  .slide-forward { animation: slide-from-right 260ms cubic-bezier(.2,.8,.2,1); }
+  .slide-back { animation: slide-from-left 260ms cubic-bezier(.2,.8,.2,1); }
+}
+
+@media print {
+  body * { visibility: hidden; }
+  .poster, .poster * { visibility: visible; }
+  .poster { position: absolute; inset: 0; background: #fff; }
+  .poster .no-print { display: none; }
+}
