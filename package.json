@@ -10,7 +10,7 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "check:compiler": "node scripts/check-react-compiler.ts",
     "test": "node --conditions=react-server --test tests/*.test.ts",
     "verify": "npm run typecheck && npm run check:compiler && npm test && npm run build"
