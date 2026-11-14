@@ -69,6 +69,20 @@ export default function WorkerApp({ id }: { id: string }) {
     setBusy(false);
   }
 
+  // Before joining, the browser's back button returns from the name screen to the language list.
+  useEffect(() => {
+    if (sessionId) return;
+    const onPop = (event: PopStateEvent) => {
+      if ((event.state as { w?: unknown } | null)?.w !== "name") setLang(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [sessionId]);
+  function pickLanguage(code: Lang) {
+    history.pushState({ ...history.state, w: "name" }, "");
+    setLang(code);
+  }
+
   const restoring = savedId === undefined || (typeof savedId === "string" && !sessionId && !restoreFailed);
   if (restoring) return <div className="grid min-h-[50vh] place-items-center" aria-busy="true"><Loading size={56} /></div>;
 
@@ -82,7 +96,7 @@ export default function WorkerApp({ id }: { id: string }) {
         <h1 lang="en">{WORKER_TEXT.en.chooseLanguage}</h1>
         <div className="grid divide-y divide-grid overflow-hidden rounded-card border border-grid bg-paper">
           {WORKER_LANGS.map(code => (
-            <button key={code} type="button" lang={code} onClick={() => setLang(code)}
+            <button key={code} type="button" lang={code} onClick={() => pickLanguage(code)}
               className="flex cursor-pointer items-center justify-between px-5 py-4 text-left text-[18px] font-semibold hover:bg-canvas active:bg-canvas">
               {LANGUAGES[code].native}
               <span aria-hidden="true" className="text-ink-3">›</span>
@@ -95,7 +109,7 @@ export default function WorkerApp({ id }: { id: string }) {
 
   return (
     <form className="grid gap-4 pt-6" lang={lang} onSubmit={start}>
-      <button type="button" className="btn-text justify-self-start" onClick={() => setLang(null)}>← {LANGUAGES[lang].native}</button>
+      <button type="button" className="btn-text -ml-1 justify-self-start" onClick={() => history.back()}>← {LANGUAGES[lang].native}</button>
       <label className="grid gap-3 text-[26px] font-bold tracking-[-0.03em]">{t.namePrompt}
         <input autoFocus value={name} maxLength={40} placeholder={t.namePlaceholder} className="!py-3.5 !text-[18px]"
           onChange={e => setName(e.target.value)} />
@@ -174,9 +188,27 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
     running.current = false;
   }
 
+  // The quiz is a history entry, so the phone's back button returns to the notice.
+  useEffect(() => {
+    const onPop = (event: PopStateEvent) => {
+      recognition.stop();
+      setStep((event.state as { w?: unknown } | null)?.w === "answer" ? "answer" : "read");
+      window.scrollTo({ top: 0 });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [recognition]);
   function go(next: "read" | "answer") {
     recognition.stop();
-    setStep(next);
+    if (next === "answer") {
+      history.pushState({ ...history.state, w: "answer" }, "");
+      setStep("answer");
+    } else if ((history.state as { w?: unknown } | null)?.w === "answer") {
+      history.back();
+      return;
+    } else {
+      setStep("read");
+    }
     window.scrollTo({ top: 0 });
   }
 
@@ -214,7 +246,7 @@ function Conversation({ id, sessionId, view, setView, reload, t, lang }: Convers
   return (
     <div className="grid gap-4" lang={lang}>
       {progress}
-      <button type="button" className="btn-text justify-self-start" onClick={() => go("read")}>← {t.backToNotice}</button>
+      <button type="button" className="btn-text -ml-1 justify-self-start" onClick={() => go("read")}>← {t.backToNotice}</button>
       <div className="grid gap-5" aria-live="polite">
         {shown.map(q => {
           const index = questions.indexOf(q);
