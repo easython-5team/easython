@@ -163,7 +163,7 @@ export default function AdminWorkspace() {
   /* ---------- 1. write ---------- */
   if (step === 1 || !draft) {
     return (
-      <Step index={1} title="바뀐 작업 내용을 입력하세요"
+      <Step index={1} title="바뀐 작업 내용을 입력하세요" onBack={() => { window.location.href = "/"; }}
         action={
           <button className="btn-primary w-full !py-3.5" aria-busy={busy === "analyze"} disabled={Boolean(busy) || !source.trim()} onClick={analyze}>
             {busy === "analyze" ? <><Loading size={20} tone="light" />분석 중</> : "다음"}
