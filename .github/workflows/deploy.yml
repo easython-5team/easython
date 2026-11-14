@@ -1,0 +1,67 @@
+# Every push to dev (a merged PR) is checked and deployed to the EC2 server.
+# SSH is closed to the internet: the job opens port 22 for its own IP only for
+# the length of the deploy, using a role that can do nothing else.
+name: Deploy
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run check:compiler
+      - run: npm test
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Open SSH for this runner
+        id: ip
+        run: |
+          IP=$(curl -fsS https://checkip.amazonaws.com)
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress --group-id "${{ vars.EC2_SG_ID }}" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$IP/32,Description=github-actions}]"
+
+      - name: Upload and build on the server
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ vars.EC2_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          # The script goes first; the source archive is then streamed into it.
+          scp -i ~/.ssh/deploy scripts/deploy-server.sh "ec2-user@${{ vars.EC2_HOST }}:/tmp/deploy-server.sh"
+          git archive --format=tar.gz HEAD | ssh -i ~/.ssh/deploy "ec2-user@${{ vars.EC2_HOST }}" 'bash /tmp/deploy-server.sh'
+
+      - name: Close SSH again
+        if: always() && steps.ip.outputs.ip != ''
+        run: |
+          aws ec2 revoke-security-group-ingress --group-id "${{ vars.EC2_SG_ID }}" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ip.outputs.ip }}/32}]"
